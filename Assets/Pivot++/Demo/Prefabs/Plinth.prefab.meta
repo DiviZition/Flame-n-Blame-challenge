@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 3beefe6dc248f07499b967e87c974435
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Plinth.prefab
+  uploadId: 1006104

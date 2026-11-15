@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 6ccb1d56e16e43428bd0abfff5a14700
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 182328
+  packageName: Grabbit - Editor Physics Transforms
+  packageVersion: 1.3.4
+  assetPath: Assets/Plugins/Jungle/Grabbit/Editor/Bootstrap/JungleInstallCheck.cs
+  uploadId: 975820

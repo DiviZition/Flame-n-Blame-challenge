@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 4013070c17ff80e4294eea70f35a6794
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Environment/Panel.prefab
+  uploadId: 1006104

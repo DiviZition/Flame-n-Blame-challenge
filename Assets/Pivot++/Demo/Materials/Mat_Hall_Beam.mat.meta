@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 56f98f88743d3204285ba83e0af27dab
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Hall_Beam.mat
+  uploadId: 1006104

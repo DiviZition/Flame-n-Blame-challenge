@@ -1,0 +1,20 @@
+{
+    "name": "PivotPlusPlusDemo.Editor",
+    "rootNamespace": "PivotPlusPlus.Demo",
+    "references": [
+        "Unity.TextMeshPro",
+        "PivotPlusPlusDemo.Runtime",
+        "PivotPlusPluss.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

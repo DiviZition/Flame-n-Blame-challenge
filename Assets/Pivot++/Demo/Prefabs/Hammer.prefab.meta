@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9341ab2483f0c9f45bd3eb34c6993e9a
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Hammer.prefab
+  uploadId: 1006104

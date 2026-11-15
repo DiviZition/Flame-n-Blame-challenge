@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: edb82e67f3916a547b37de2cf6f45089
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Environment/Inlay.prefab
+  uploadId: 1006104

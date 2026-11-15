@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 255b6ce97c5edb343aef333988b489d3
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Environment/Ceiling Light.prefab
+  uploadId: 1006104

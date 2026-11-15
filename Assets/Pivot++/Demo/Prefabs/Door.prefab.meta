@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: dd150a596591fb64a9c9fea374c2cf7e
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Door.prefab
+  uploadId: 1006104

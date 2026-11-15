@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6a66b10d05a5a094c81385dc2e4c7d48
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Hall_Panel.mat
+  uploadId: 1006104

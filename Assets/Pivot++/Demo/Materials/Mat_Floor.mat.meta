@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a2d8f5ea03be9f54691ab5ae02c3dbeb
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Floor.mat
+  uploadId: 1006104

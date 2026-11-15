@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6af447c844e7c674192857b652f1fe5f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Plinth.mat
+  uploadId: 1006104

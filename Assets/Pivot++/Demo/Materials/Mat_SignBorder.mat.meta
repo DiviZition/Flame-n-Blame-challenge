@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b7f1ffd5249ce664ea5a46a9888dcffa
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_SignBorder.mat
+  uploadId: 1006104

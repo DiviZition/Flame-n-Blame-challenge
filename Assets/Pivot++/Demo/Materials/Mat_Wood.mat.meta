@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 106eb56f8941d854eb238e8dbd6511db
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Wood.mat
+  uploadId: 1006104

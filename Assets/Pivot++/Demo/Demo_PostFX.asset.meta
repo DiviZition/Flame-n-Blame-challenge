@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7b8e71f74b0b58f46826a26cace24410
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Demo_PostFX.asset
+  uploadId: 1006104

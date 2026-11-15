@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6466e609a3927aa45b05b0081357c5cb
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Screw.prefab
+  uploadId: 1006104

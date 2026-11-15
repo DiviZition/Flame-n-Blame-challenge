@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 40b31d8077129ce4f9de50a999678eba
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Environment/Piller.prefab
+  uploadId: 1006104

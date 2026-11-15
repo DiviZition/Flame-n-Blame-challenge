@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 79d83cbb47b68cb4c9efde1bfe50c91d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Problem.mat
+  uploadId: 1006104

@@ -1,0 +1,16 @@
+{
+    "name": "PivotPlusPlusDemo.Runtime",
+    "rootNamespace": "",
+    "references": [
+        "GUID:157f5e20854bb8346afbb9a180d6f51f"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

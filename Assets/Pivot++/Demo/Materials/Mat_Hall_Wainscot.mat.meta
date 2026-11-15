@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f24dd94924805634cb923f9f94700d03
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Hall_Wainscot.mat
+  uploadId: 1006104

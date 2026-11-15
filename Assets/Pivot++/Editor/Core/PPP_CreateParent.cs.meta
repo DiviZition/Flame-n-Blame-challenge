@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 20ee805d53a7e79468d563ef46cf7bc1
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Editor/Core/PPP_CreateParent.cs
+  uploadId: 1006104

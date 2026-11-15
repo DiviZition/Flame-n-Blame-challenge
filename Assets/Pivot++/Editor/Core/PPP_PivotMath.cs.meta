@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 26b523972ab354c44ab5b6a6ffa77cc5
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Editor/Core/PPP_PivotMath.cs
+  uploadId: 1006104

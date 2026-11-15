@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: b7a899664f920f74980aefd7bc85729e
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Editor/Core/PPP_PivotDragState.cs
+  uploadId: 1006104

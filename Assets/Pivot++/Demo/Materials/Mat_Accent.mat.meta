@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bf8136ea829b1b847bf2a3c25fe70fc8
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Accent.mat
+  uploadId: 1006104

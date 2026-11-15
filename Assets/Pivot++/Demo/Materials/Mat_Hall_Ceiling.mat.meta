@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4cd112ca1a12cd648b16f5972b9f0ec7
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Hall_Ceiling.mat
+  uploadId: 1006104

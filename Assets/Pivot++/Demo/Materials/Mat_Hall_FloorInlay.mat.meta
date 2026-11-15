@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1d1307b3dc9860a488320793b0edfc7a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Hall_FloorInlay.mat
+  uploadId: 1006104

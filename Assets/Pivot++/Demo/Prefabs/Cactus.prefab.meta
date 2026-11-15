@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9d312c40ba0265d4c8ebf2ead4ca24e9
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Cactus.prefab
+  uploadId: 1006104

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 2aac87065358d7c40af4881a3e4778b1
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Editor/PivotPlusPlusDemo.Editor.asmdef
+  uploadId: 1006104

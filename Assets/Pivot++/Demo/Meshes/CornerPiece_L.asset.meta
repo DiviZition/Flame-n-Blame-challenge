@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3f1dd0928812f1744ae05b93d6fe482d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Meshes/CornerPiece_L.asset
+  uploadId: 1006104

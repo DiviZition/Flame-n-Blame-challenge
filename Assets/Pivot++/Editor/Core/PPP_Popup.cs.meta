@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: ff97e1245a6e3e24bb8e3f18c999bd73
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Editor/Core/PPP_Popup.cs
+  uploadId: 1006104

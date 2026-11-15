@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 2e21102b4fb33be45a84b6288ed3b779
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Prefabs/Environment/Wall Start.prefab
+  uploadId: 1006104

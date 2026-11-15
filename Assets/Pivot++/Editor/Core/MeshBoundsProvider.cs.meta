@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: 5686480179214a6f8586b7686bac623c
+timeCreated: 1784909986
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Editor/Core/MeshBoundsProvider.cs
+  uploadId: 1006104

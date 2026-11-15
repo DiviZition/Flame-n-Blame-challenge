@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0039cf0ad6449264abe95a525f9b38f3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Materials/Mat_Hall_Glow.mat
+  uploadId: 1006104

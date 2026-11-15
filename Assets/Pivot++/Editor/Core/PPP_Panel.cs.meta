@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 7f5f9422c38d4e5ea8945be2a2d211bc
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Editor/Core/PPP_Panel.cs
+  uploadId: 1006104

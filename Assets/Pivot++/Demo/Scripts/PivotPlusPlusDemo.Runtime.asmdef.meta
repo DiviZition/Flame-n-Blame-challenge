@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 8219b39fbf1aa6e42a5bf593feedfe02
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 393670
+  packageName: Pivot++
+  packageVersion: 1.1.0
+  assetPath: Assets/Pivot++/Demo/Scripts/PivotPlusPlusDemo.Runtime.asmdef
+  uploadId: 1006104
