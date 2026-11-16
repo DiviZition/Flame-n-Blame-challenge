@@ -12,7 +12,10 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
-  m_InvalidKeywords: []
+  m_InvalidKeywords:
+  - _USENOISEVARIATION_ON
+  - _USEOBJECTDISTANCEFADE_ON
+  - _USESINEVARIATION_ON
   m_LightmapFlags: 0
   m_EnableInstancingVariants: 1
   m_DoubleSidedGI: 0
@@ -75,7 +78,9 @@ Material:
     m_Floats:
     - _AlphaCutoff: 0.5
     - _AngleFade: 1
+    - _AngleFadeEnd: 1
     - _AngleFadeStart: 0.5
+    - _Brightness: 1
     - _BumpScale: 1
     - _CameraDepthFadeEnd: 2
     - _CameraDepthFadeEndDistance: 2
@@ -95,14 +100,21 @@ Material:
     - _Intensity: 0.263
     - _Metallic: 0
     - _Mode: 0
+    - _NoiseVariationScale: 1
+    - _NoiseVariationSpeed: 1
+    - _ObjectDistanceFadeStart: 20
     - _OcclusionStrength: 1
     - _OffsetAmount: 10
     - _Parallax: 0.02
+    - _PosterizationSteps: 0
+    - _Posterize: 0
     - _QueueControl: 0
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _RenderOffset: 0
     - _RenderSpace: 0
+    - _SineOffset: 0
+    - _SineVariationSpeed: 1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
@@ -113,8 +125,11 @@ Material:
     - _UseCameraDepthFade1: 0
     - _UseCameraDistanceFade: 0
     - _UseLightColor1: 0
+    - _UseNoiseVariation: 1
+    - _UseObjectDistanceFade: 1
     - _UseSceneDepthFade: 0
     - _UseSceneDepthFade1: 0
+    - _UseSineVariation: 1
     - _UseUniformVariation: 1
     - _UseVariation: 0
     - _UseVariation1: 1
@@ -131,8 +146,10 @@ Material:
     - _FlareColor: {r: 1.8640718, g: 1.409102, b: 0.8001441, a: 0.68235296}
     - _MainColor: {r: 2.3541589, g: 2.3541589, b: 2.3541589, a: 1}
     - _MainColor1: {r: 1.7633113, g: 1.0328609, b: 0.6404479, a: 0.4392157}
+    - _NoiseVariationColor: {r: 1, g: 1, b: 1, a: 0.454902}
     - _Offset: {r: -1, g: 1, b: 0, a: 0}
     - _SecondaryColor: {r: 2.3541589, g: 2.3541589, b: 2.3541589, a: 1}
+    - _SineVariationColor: {r: 1, g: 1, b: 1, a: 0.454902}
     - _VariationColor: {r: 1.7633113, g: 1.0328609, b: 0.6404479, a: 0}
     - _VariationColor1: {r: 1, g: 1, b: 1, a: 0.454902}
   m_BuildTextureStacks: []
