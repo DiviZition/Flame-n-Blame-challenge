@@ -16,10 +16,17 @@ Originals came from `D:\Downloads\Flame_n_Blame_Challenge_Tech_Design.md` and
 original language and wording** — don't translate or tidy them, they're the contract; edit the
 decisions in `DECISIONS.md` instead.
 
+> ⚠️ **Status 2026-11-17: neither file is actually in `docs/` yet.** The copy never landed (the
+> write was blocked mid-session, see TODO.md "High priority"), and they are no longer in
+> `D:\Downloads\` either — so the contract exists only in the summaries quoted in DECISIONS.md
+> D-008 and in `../README.md`. Until they are recovered, cite the pillars via D-008, not by TDD
+> section number.
+
 ## Project memory (part of doing the work, not an afterthought)
 
 | File | Use it for |
 |------|-----------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The code map: layers, which way dependencies point, who owns the tick, the Unity boundary. Read before adding a system; update it whenever the shape moves (D-015). |
 | [DECISIONS.md](DECISIONS.md) | Architecture calls with the *why*. Never edit an old entry — supersede it. |
 | [GOTCHAS.md](GOTCHAS.md) | The moment we get burned or find a hard restriction. One-line **Rule** each. |
 | [BUGS.md](BUGS.md) | Confirmed bugs, `Open → Repro → In progress → Fixed → Verified`. |
@@ -28,7 +35,8 @@ decisions in `DECISIONS.md` instead.
 
 ## Reading order for new work
 
-1. `../CLAUDE.md` — commands, architecture, vendor boundaries.
-2. `TDD.md` — what we are building.
-3. `GOTCHAS.md` + `TODO.md` — what will bite us and what's next.
-4. `DECISIONS.md` — when something looks like a strange choice, it's probably logged there.
+1. `../CLAUDE.md` — commands, assembly, vendor boundaries.
+2. `TDD.md` — what we are building (see the status warning above).
+3. `ARCHITECTURE.md` — how the code is shaped, and where a new system goes.
+4. `GOTCHAS.md` + `TODO.md` — what will bite us and what's next.
+5. `DECISIONS.md` — when something looks like a strange choice, it's probably logged there.

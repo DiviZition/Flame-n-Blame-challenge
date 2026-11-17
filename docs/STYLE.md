@@ -6,8 +6,13 @@ in DECISIONS.md).
 
 ## C# (game code in `Assets/_Core/Scripts`)
 
-- **Namespaces:** `FlameNBlame` root, then by area: `FlameNBlame.Core`, `FlameNBlame.Player`,
-  `FlameNBlame.Combat`, etc. One namespace per file; file path should mirror it loosely.
+- **Namespaces:** `Flame_n_Blame_Challenge` root, then **by layer**: `.Domain`, `.UseCases`,
+  `.Adapters` (see D-014 and the layer table in [ARCHITECTURE.md](ARCHITECTURE.md) §2). Matches the
+  asmdef `rootNamespace`, so the editor auto-inserts it correctly. Not by feature — a feature
+  namespace would let `…Fire` reference `…Player` with nothing to see. `FlameNBlame` is the
+  assembly/file name, never a namespace. Folder names may state the pattern rather than mirror the
+  namespace (`Scripts/InterfaceAdapters/` → `.Adapters`); that is deliberate (D-014). One namespace
+  per file; file path should mirror it.
 - **Naming:** PascalCase for types, methods, properties, public fields; `camelCase` for locals
   and parameters; `_camelCase` for private fields (including `[SerializeField]` ones);
   ALL_CAPS for constants.
@@ -17,8 +22,11 @@ in DECISIONS.md).
   except in data-only DTOs.
 - **Async/tweening:** UniTask (`async UniTask`) instead of `StartCoroutine`; PrimeTween instead
   of DOTween/manual lerps (see D-004).
-- **Unity messages:** keep `Awake/Start/Update/OnEnable/OnDisable` thin; delegate to named
-  private methods when logic grows. Always unsubscribe events in `OnDisable`.
+- **Unity messages:** only the composition host and the thin shells are allowed to define
+  `Update`/`FixedUpdate`; gameplay classes implement `IUpdatable` instead (D-013). Keep
+  `Awake/Start/OnEnable/OnDisable` thin and delegate to named private methods when logic grows;
+  a shell holds no rules (D-012, ARCHITECTURE.md §4). Always unsubscribe events in `OnDisable`,
+  and dispose adapters that subscribed to anything external.
 - **Avoid:** `GameObject.Find`/`FindObjectOfType` in `Update` (cache in `Awake`); `magic strings`
   for tags/layers (use constants); `SendMessage`.
 - **Comments:** explain *why*, not *what*. No commented-out code in commits — delete it
@@ -60,9 +68,10 @@ in DECISIONS.md).
 
 ## Docs
 
-- Everything lives in `docs/` (D-011): DECISIONS.md for architecture calls with why;
-  GOTCHAS.md the moment we get burned; BUGS.md for confirmed bugs; TODO.md for anything we must
-  not forget; `docs/README.md` is the index. `CLAUDE.md` stays at repo root and only points here
-  (G-009). Keep them short and current.
+- Everything lives in `docs/` (D-011): **ARCHITECTURE.md for the shape of the code** (layers, tick,
+  Unity boundary — edit it in the same change that moves a layer); DECISIONS.md for architecture calls
+  with why; GOTCHAS.md the moment we get burned; BUGS.md for confirmed bugs; TODO.md for anything we
+  must not forget; `docs/README.md` is the index. Shape → ARCHITECTURE, call → DECISIONS, convention →
+  this file. `CLAUDE.md` stays at repo root and only points here (G-009). Keep them short and current.
 - Design docs (`TDD.md`, `Preproduction.md`) are the contract: read them, don't rewrite them.
   A change of scope is a new DECISIONS entry, never an edit to the TDD.

@@ -15,9 +15,23 @@ checklist items below mirror the TDD's own check-lists, so "done" means *done on
 ## High priority (blocking — do first)
 
 - [ ] 2026-11-16 — **B-001**: give WebGL a quality level that points at `Web_RPAsset` — web build currently has no render pipeline at all (G-010, D-009)
-- [ ] 2026-11-16 — Finish the docs move: copy `D:\Downloads\Flame_n_Blame_Challenge_Tech_Design.md` → `docs/TDD.md` and `..._Preproduction.md` → `docs/Preproduction.md`, then delete the now-duplicate root `DECISIONS.md`, `GOTCHAS.md`, `BUGS.md`, `TODO.md`, `STYLE.md` *(blocked: shell command approval unavailable — the safety classifier kept timing out, so only the new `docs/` copies were written)*
-- [ ] 2026-11-16 — Fix `FlameNBlame.asmdef` editor-only reference (G-001) before adding first script
-- [ ] 2026-11-16 — Change asmdef `rootNamespace` to valid identifier `FlameNBlame` (G-002)
+- [ ] 2026-11-16 — **The design contract is missing from the repo.** `docs/TDD.md` and
+      `docs/Preproduction.md` were never copied in (the write was blocked mid-session), and the
+      originals are no longer in `D:\Downloads\` — find them, or restate the contract from
+      DECISIONS D-008 + `README.md` and log that as a decision. Until then nothing cites TDD §numbers
+      as if the file existed. The root `DECISIONS/GOTCHAS/BUGS/TODO/STYLE.md` copies are deleted in the
+      working tree but unstaged, and `docs/` is still untracked — commit the move.
+- [ ] 2026-11-16 — Fix `FlameNBlame.asmdef` editor-only reference (G-001) — **now urgent, scripts exist**
+- [x] 2026-11-16 — Change asmdef `rootNamespace` to a valid identifier (G-002) — done as
+      `Flame_n_Blame_Challenge`, which is now the project namespace root by decision (D-014)
+- [ ] 2026-11-17 — Fix the asmdef `name` field: it is the typo `FlameNBlame-asmdf` while every doc
+      calls the assembly `FlameNBlame`; references are GUID-based so renaming is safe (do it with G-001)
+- [ ] 2026-11-17 — Apply the composition shape to the existing scaffolding (ARCHITECTURE.md §8): create
+      `Scripts/UseCases/` + `Scripts/Domain/`, move `GamePlaySession`/`PlayerState`/`PlayerMovement` out
+      of `Bootstrapper.cs` (one type per file, STYLE.md), call `StartGamePlay()`, register updatables,
+      and dispose `PlayerInputMain` on teardown
+- [ ] 2026-11-17 — Add `IFixedUpdatable` + the single `FixedUpdate` host before implementing pillar 2's
+      spray forces (D-013) — physics impulses and queries on the fixed step, visuals on the update step
 - [ ] 2026-11-16 — Create first gameplay scene, add to Build Settings (G-003)
 - [ ] 2026-11-16 — Add the WebGL module/build profile and get one empty-scene web build deploying, before any gameplay exists (D-007)
 - [ ] 2026-11-16 — Set `companyName` in ProjectSettings (currently `DefaultCompany`) — it becomes the web build folder + product path
@@ -81,6 +95,7 @@ checklist items below mirror the TDD's own check-lists, so "done" means *done on
 
 ## Done
 
+- [x] 2026-11-17 — Architecture approach written down: `docs/ARCHITECTURE.md` added as the code map, with D-012 (plain classes + shells + composition root), D-013 (one owned tick + fixed step), D-014 (namespace root `Flame_n_Blame_Challenge`), D-015 (map vs log split); STYLE/GOTCHAS G-002/README index updated to match
 - [x] 2026-11-16 — TDD + preproduction received and confirmed binding; scope locked to FPS controller + extinguisher + hydrant catapult + fire system (D-008)
 - [x] 2026-11-16 — Target platform decided: WebGL from day one, not a late check (D-007)
 - [x] 2026-11-16 — Nice Vibrations kept but dormant; Feel used for juice beyond haptics (D-010)

@@ -31,12 +31,13 @@ building destruction, ragdoll/IK and the dam are deliberately out — the reason
 ## Documentation
 
 All project docs live in the [`docs/`](docs/) folder: the design contract (`TDD.md`,
-`Preproduction.md`) and the working memory we keep current as we build (`DECISIONS.md`,
-`GOTCHAS.md`, `BUGS.md`, `TODO.md`, `STYLE.md`). Start with
+`Preproduction.md`) and the working memory we keep current as we build (`ARCHITECTURE.md`,
+`DECISIONS.md`, `GOTCHAS.md`, `BUGS.md`, `TODO.md`, `STYLE.md`). Start with
 [`docs/README.md`](docs/README.md) for the reading order, and
 [`CLAUDE.md`](CLAUDE.md) for engine, commands and vendor boundaries.
 
 ## Engine
 
 Unity 6 (6000.6.5f1), URP 17.6.0, Input System, PrimeTween, UniTask, Cinemachine, Feel (MMF_Player).
-Game code lives only in `Assets/_Core`.
+Game code lives only in `Assets/_Core`: game logic as plain C# classes driven by a tick we own, with
+Unity kept at the edge of it — the map is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

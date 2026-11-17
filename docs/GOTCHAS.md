@@ -28,13 +28,18 @@ discover a hard restriction — it goes here so the next person (human or AI) do
   code goes in its own asmdef under `_Core/Editor` with `includePlatforms: ["Editor"]`.
 
 ## G-002: Invalid rootNamespace in FlameNBlame.asmdef
-- **Status:** Open
+- **Status:** Resolved (2026-11-17)
 - **What happened / will happen:** `"rootNamespace": "Flame-n-Blame-Challenge"` — hyphens are not
   valid in C# identifiers. Scripts created via the editor (which auto-insert the root namespace)
   will generate non-compiling code.
 - **Rule:** Change `rootNamespace` to a valid identifier (e.g. `FlameNBlame`) before creating
   scripts through the editor. Manually written files must declare `namespace FlameNBlame…`
   themselves — see STYLE.md.
+- **Resolution:** `rootNamespace` is now `Flame_n_Blame_Challenge`, and that root — not
+  `FlameNBlame` — is the project's namespace root by decision (D-014); STYLE.md §Namespaces and this
+  entry's example are updated to match. The lesson stands: an invalid `rootNamespace` produces
+  silently non-compiling editor-generated files, so check it before creating the first script in an
+  assembly, and let the asmdef carry the convention rather than typing namespaces by hand.
 
 ## G-003: Build settings point at a scene that doesn't exist
 - **Status:** Open
