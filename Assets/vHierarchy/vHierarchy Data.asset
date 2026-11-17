@@ -20,6 +20,7 @@ MonoBehaviour:
         keys:
         - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-752721361-0
         - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-757239507-0
+        - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-66095847-0
         values:
         - colorIndex: 0
           iconNameOrGuid: ParticleSystem Icon
@@ -27,6 +28,10 @@ MonoBehaviour:
           isColorRecursive: 0
         - colorIndex: 0
           iconNameOrGuid: AvatarMask On Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: Camera Icon
           isIconRecursive: 0
           isColorRecursive: 0
   bookmarks: []

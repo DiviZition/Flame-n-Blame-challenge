@@ -1,7 +1,7 @@
 using Flame_n_Blame_Challenge.Adapters;
 using System.Collections.Generic;
 
-namespace Flame_n_Blame_Challenge
+namespace Flame_n_Blame_Challenge.Adapters
 {
     public class GameUpdater : IUpdatable
     {
@@ -22,18 +22,20 @@ namespace Flame_n_Blame_Challenge
             RemoveStagedUpdatables();
         }
 
-        public void RegisterUpdatable(IUpdatable updatable)
+        public GameUpdater RegisterUpdatable(IUpdatable updatable)
         {
-            if (updatable == null || _updatables.Contains(updatable))
-                return;
+            if (updatable != null && _updatables.Contains(updatable) == false)
+                _updatables.Add(updatable);
 
-            _updatables.Add(updatable);
+            return this;
         }
 
-        public void RemoveUpdatable(IUpdatable updatable)
+        public GameUpdater RemoveUpdatable(IUpdatable updatable)
         {
             if (updatable != null)
                 _updatablesToRemove.Enqueue(updatable);
+
+            return this;
         }
 
         private void RemoveStagedUpdatables()
