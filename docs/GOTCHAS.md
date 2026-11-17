@@ -41,6 +41,8 @@ discover a hard restriction — it goes here so the next person (human or AI) do
 - **What happened / will happen:** `EditorBuildSettings.asset` lists `Assets/Scenes/SampleScene.unity`
   (deleted). Building or some editor tooling may fail or silently build an empty scene list.
 - **Rule:** After creating the first real scene, re-add it in Build Settings (File → Build Profiles).
+  Note that this bites *harder* on WebGL: a build with an empty scene list produces a page that
+  loads and shows nothing (D-007).
 
 ## G-004: Feel AI skills are not visible to Claude Code by default
 - **Status:** Open
@@ -81,3 +83,35 @@ discover a hard restriction — it goes here so the next person (human or AI) do
 - **Rule:** When the first tests are written, add `com.unity.test-framework` to `Packages/manifest.json`
   explicitly and create a `_Core/Tests` asmdef referencing `UnityEngine.TestRunner` +
   `UnityEditor.TestRunner`.
+
+## G-009: `CLAUDE.md` cannot live in `docs/`
+- **Status:** Avoided
+- **What happened / will happen:** Moving the project docs into `docs/` (D-011) looks like it should
+  include `CLAUDE.md`. It must not: Claude Code only auto-loads `CLAUDE.md` from the project root,
+  so a `docs/CLAUDE.md` is simply never read — the loss is silent, and every future session then
+  works without the commands, vendor boundaries or conventions, with nothing broken to notice by.
+- **Rule:** `CLAUDE.md` stays at repo root as a thin entry point that points into `docs/`; the other
+  docs move freely. When adding a doc, put it in `docs/` and add a pointer from `CLAUDE.md`.
+
+## G-010: Renaming a render pipeline asset rebinds and retunes nothing
+- **Status:** Open
+- **What happened / will happen:** `PC_RPAsset` → `Web_RPAsset` (with `PC_Renderer` →
+  `Web_Renderer`) renamed the files and kept their GUIDs, so it *looked* done. But the pipeline is
+  bound through **quality levels**, not file names: `Web_RPAsset` is still attached only to the
+  "PC" level, the "PC" level excludes WebGL (`QualitySettings.asset:119`), `WebGL` defaults to
+  level 0 "Mobile" (`QualitySettings.asset:137`), and that level's pipeline GUID `5e6cbd92…` pointed
+  at the deleted `Mobile_RPAsset` — so a web build has no pipeline (B-001). The editor shows none of
+  this because `m_CurrentQuality: 1` runs the PC level. The asset also still carries PC-grade
+  settings under its web name.
+- **Rule:** After renaming/deleting any pipeline asset, switch the actual build target and check
+  quality-level → pipeline routing per platform — the editor's current view proves nothing. Renaming
+  buys a name, never a retune: budget a separate pass to strip HDR/shadows/post for web.
+
+## G-011: Haptics don't exist on the shipping target
+- **Status:** Open
+- **What happened / will happen:** Nice Vibrations ships inside Feel and its modules are tempting
+  because they are two clicks away in an `MMF_Player`. On WebGL there is no haptic device path at
+  all, so anything tuned "by feel" via vibration is tuning a channel the player will never have —
+  and adding an NV module to a feedback prefab also re-creates the code dependency D-010 dropped.
+- **Rule:** Never gate game feel on haptics, and never add `NiceVibrations*` modules to an
+  `MMF_Player`. Express impact through camera, audio, particles and time instead (D-007, D-010).
