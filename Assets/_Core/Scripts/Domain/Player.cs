@@ -13,6 +13,8 @@ namespace Flame_n_Blame_Challenge.Domain
         // PlayerHealth
         // PlayerStatuses
 
+        private Vector3 _pendingImpulse;
+
         public Player(IPlayerInput input, IGameSettings gameSettings)
         {
             LookRotation = new PlayerLookRotator(input, gameSettings);
@@ -22,6 +24,18 @@ namespace Flame_n_Blame_Challenge.Domain
         public void Update(float time, float deltaTime)
         {
             LookRotation.Update(time, deltaTime);
+        }
+
+        public void ApplyExternalImpulse(Vector3 worldImpulse)
+        {
+            _pendingImpulse = worldImpulse;
+        }
+
+        public Vector3 ConsumePendingImpulse()
+        {
+            var impulse = _pendingImpulse;
+            _pendingImpulse = Vector3.zero;
+            return impulse;
         }
     }
 
@@ -97,5 +111,27 @@ namespace Flame_n_Blame_Challenge.Domain
             else
                 return _settings.PlayerSpeedBase;
         }
+    }
+
+    public class ForcePreset
+    {
+        public PushForceType Type;
+        public PushForceInteraptionType InterationType;
+        public float Duration;
+        public float Progress;
+    }
+
+    public enum PushForceType
+    {
+        PlayerJump,
+        HydrantPush,
+        Extinguisher,
+    }
+
+    public enum PushForceInteraptionType
+    {
+        None,
+        OnGrounded,
+        Override,
     }
 }
