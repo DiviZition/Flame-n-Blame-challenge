@@ -7,8 +7,8 @@ namespace Flame_n_Blame_Challenge.Adapters
     {
         [field: SerializeField] public float PlayerSpeedBase { get; private set; }
         [field: SerializeField] public float PlayerSpeedSprint { get; private set; }
+        [field: SerializeField] public float PlayerSpeedInAir { get; private set; }
         [field: SerializeField] public float PlayerJumpForce { get; private set; }
-        [field: SerializeField] public float Gravity { get; private set; }
 
         [field: SerializeField] public float LookSensitivity { get; private set; }
         [field: SerializeField] public Vector2 LookPitchBounds { get; private set; }
@@ -19,6 +19,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     {
         public float PlayerSpeedBase { get; }
         public float PlayerSpeedSprint { get; }
+        public float PlayerSpeedInAir { get; }
         public float PlayerJumpForce { get; }
 
         public float LookSensitivity { get; }

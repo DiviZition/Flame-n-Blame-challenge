@@ -21,7 +21,6 @@ namespace Flame_n_Blame_Challenge.Domain
 
         public void Update(float time, float deltaTime)
         {
-            Movement.Update(time, deltaTime);
             LookRotation.Update(time, deltaTime);
         }
     }
@@ -56,15 +55,16 @@ namespace Flame_n_Blame_Challenge.Domain
         }
     }
 
-    public class PlayerMovement : IUpdatable
+    public class PlayerMovement 
     {
         private readonly IPlayerInput _input;
         private readonly IGameSettings _settings;
         private readonly PlayerLookRotator _look;
 
-        public Vector3 DesiredVelocity { get; private set; }
+        public Vector3 DesiredVelocity => CalculateDesiredVelocity();
         public bool IsGrounded { get; private set; }
-        public bool IsSprinting => _input.IsRunning;
+        public bool IsSprinting => _input.IsRunning && IsGrounded;
+        public bool IsJumping => _input.IsJumping && IsGrounded;
 
         public PlayerMovement(IPlayerInput input, IGameSettings settings, PlayerLookRotator look)
         {
@@ -75,34 +75,27 @@ namespace Flame_n_Blame_Challenge.Domain
 
         public void SetIsGrounded(bool isGrounded) => IsGrounded = isGrounded;
 
-        /// <summary>
-        /// Call this every frame (from Player or from an Adapter).
-        /// </summary>
-        public void Update(float time, float deltaTime)
+        private Vector3 CalculateDesiredVelocity()
         {
-            // --- Horizontal movement ---
-            float speed = IsSprinting
-                ? _settings.PlayerSpeedSprint
-                : _settings.PlayerSpeedBase;
-
             Vector2 input = _input.InputDirection;
 
-            Vector3 horizontal =
-                _look.Forward * input.y +
+            Vector3 horizontal = 
+                _look.Forward * input.y + 
                 _look.Right * input.x;
 
-            horizontal *= speed;
+            horizontal *= GetSpeed();
 
-            // TODO: Rewrite jump as an event
+            return new Vector3(horizontal.x, 0, horizontal.z);
+        }
 
-            // --- Jump --- 
-            float vertical = 0;
-            if (_input.IsJumping && IsGrounded)
-            {
-                vertical = _settings.PlayerJumpForce;
-            }
-
-            DesiredVelocity = new Vector3(horizontal.x, vertical, horizontal.z);
+        private float GetSpeed()
+        {
+            if (IsGrounded == false)
+                return _settings.PlayerSpeedInAir;
+            else if (IsSprinting)
+                return _settings.PlayerSpeedSprint;
+            else
+                return _settings.PlayerSpeedBase;
         }
     }
 }

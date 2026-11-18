@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: FlameNBlame-asmdf::Flame_n_Blame_Challenge.Adapters.GameSettings
   <PlayerSpeedBase>k__BackingField: 5
   <PlayerSpeedSprint>k__BackingField: 8
+  <PlayerSpeedInAir>k__BackingField: 2
   <PlayerJumpForce>k__BackingField: 10
   <LookSensitivity>k__BackingField: 0.17
   <LookPitchBounds>k__BackingField: {x: -90, y: 90}

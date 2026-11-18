@@ -122,6 +122,72 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bb8fee06470739449a07a58093305e1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FlameNBlame-asmdf::Flame_n_Blame_Challenge.Adapters.PlayerMotor
+  <JumpCurve>k__BackingField:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  <Gravity>k__BackingField: 19.62
+  <JumpDuration>k__BackingField: 0
+  <TestForcePreset>k__BackingField:
+    Direction: {x: 0, y: 3, z: 0}
+    Duration: 2
+    ForceCurve:
+      X:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      Y:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 109.12144
+          outSlope: 109.12144
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0.04347826
+        - serializedVersion: 3
+          time: 0.14999999
+          value: 9.082387
+          inSlope: 6.199594
+          outSlope: 6.199594
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0.8888889
+          outWeight: 0.2404961
+        - serializedVersion: 3
+          time: 0.7737108
+          value: 8.365236
+          inSlope: -8.793953
+          outSlope: -8.793953
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0.17254174
+          outWeight: 0.5396745
+        - serializedVersion: 3
+          time: 1
+          value: 0
+          inSlope: -83.32918
+          outSlope: -83.32918
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0.055238992
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      Z:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
   _controller: {fileID: 4619265932195510285}
   _cameraHolder: {fileID: 747750127075177749}
 --- !u!143 &4619265932195510285
