@@ -1580,87 +1580,35 @@ MonoBehaviour:
   m_GameObject: {fileID: 971959110}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 75c4001556e8f7e47aca53aa50ef5170, type: 3}
+  m_Script: {fileID: 11500000, guid: 77aa693c5088f0e41beb8fbb7dd931b5, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: FlameNBlame-asmdf::Flame_n_Blame_Challenge.HydrantPush
-  PushPreset:
+  m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.HydrantPush
+  _pushPreset:
     Type: 0
+    Kind: 0
+    Applies: 0
+    Force: 2000
     Curve:
       X:
         serializedVersion: 2
-        m_Curve:
-        - serializedVersion: 3
-          time: 0
-          value: 0
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 34
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0.33333334
-        - serializedVersion: 3
-          time: 1
-          value: 0
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 34
-          weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0
+        m_Curve: []
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
       Y:
         serializedVersion: 2
-        m_Curve:
-        - serializedVersion: 3
-          time: 0
-          value: 10
-          inSlope: -0.32207784
-          outSlope: -0.32207784
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0.22916667
-        - serializedVersion: 3
-          time: 1
-          value: 0
-          inSlope: -10
-          outSlope: -10
-          tangentMode: 34
-          weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0
+        m_Curve: []
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
       Z:
         serializedVersion: 2
-        m_Curve:
-        - serializedVersion: 3
-          time: 0
-          value: 30
-          inSlope: 18.087769
-          outSlope: 18.087769
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0.0625
-        - serializedVersion: 3
-          time: 1
-          value: 0
-          inSlope: 0.36988288
-          outSlope: 0.36988288
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0.625
-          outWeight: 0
+        m_Curve: []
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
     Duration: 2
-    IgnoreOrientation: 0
-  PushDirection: {fileID: 515207059}
+  _pushDirection: {fileID: 515207059}
 --- !u!136 &971959113
 CapsuleCollider:
   m_ObjectHideFlags: 0

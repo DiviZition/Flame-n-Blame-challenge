@@ -25,7 +25,7 @@ namespace Flame_n_Blame_Challenge.Adapters
             SubscribeToInputs(_inputMap);
         }
 
-        public void Update(float time, float deltaTime)
+        public void UpdateLogic(float time, float deltaTime)
         {
             LookDelta = _inputMap.Player.Look.ReadValue<Vector2>();
             InputDirection = _inputMap.Player.Move.ReadValue<Vector2>();

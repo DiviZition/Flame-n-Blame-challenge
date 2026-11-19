@@ -5,6 +5,17 @@ It stays at repo root (and thin) on purpose — everything else lives in [`docs/
 [`docs/README.md`](docs/README.md). Claude Code only auto-loads this file from the root (G-009), so
 pointers belong here and detail belongs in `docs/`. Design docs are the contract: read, never rewrite.
 
+## Rules
+
+- Only one task at a time. If user prompt is huge - break it down into multiple tasks and provide the plan.
+Made one task -> Test/Check is it good -> save -> stop and verify with the user, unless specified to perform all at once.
+- Each task should has a test. The task is completed only when the test is passed. Each test must run at least 5 times.
+- Do not touch any files, that are not related to current task.
+- Any important deceition, that is not obvious, must be discussed with the user until completely clarified.
+- Each test must run under 90 seconds.
+- The only source of truth about the beauty - is the users eyes and feelings.
+
+
 ## Project
 
 Unity 6 (6000.6.5f1) URP 3D game — "Flame & Blame challenge". Firefighter mini-game: FPS feet, one
@@ -27,30 +38,48 @@ water. Chaos that reads at a glance.
 - **Known blocker:** WebGL currently has no render pipeline assigned (B-001) — fix before treating
   any web build as a measurement.
 
-## Current state of the code (as of 2026-11-17 — verify against the files, this list is a map, not a guarantee)
+## Current state of the code (as of 2026-11-19 — verify against the files, this list is a map, not a guarantee)
 
-- **The working tree does not compile.** `Assets/_Core/Scripts/Bootstrapper.cs:113` is a dangling
-  `_resources` statement (no `;`) followed by a comment, inside `StartGamePlay()`. Fix that first,
-  then run the headless compile check.
+- **Compile status is unconfirmed.** The blockers logged as B-002 (duplicate `ForcePreset` in
+  `Player.cs` + `PlayerMotor.cs`, `using NUnit.Framework;` in the runtime asmdef, the dangling
+  `_resources` statement in `Bootstrapper.cs`) were removed by the D-016 rewrite, **but the headless
+  compile gate has not been run** — run it before trusting any claim that the tree compiles.
 - **Nothing runs yet.** `Bootstrapper`'s script GUID appears nowhere in
   `Assets/_Core/Scenes/FnB_Gameplay.unity` → the composition root is not in the scene, so no tick is
   driven. `PlayerMotor` *is* attached on the `Player` object. The scene is placeholder cubes/cylinders
   + Cinemachine camera/brain + a `SpineProxy` (Kevin Iglesias) — no authored level.
-- **What exists today:** `Bootstrapper.cs` (composition host, `GameSettings` + `ResourcesProvider`
-  ScriptableObjects and their interfaces, `ResourceSpawner`, and `GamePlaySession` under
-  `namespace Flame_n_Blame_Challenge.UseCases` — **7 types in one file, across 2 namespaces**, which
-  breaks STYLE.md's one-type-per-file: they must move to `Scripts/UseCases/` etc. per D-012),
-  `GameUpdater.cs`, `InterfaceAdapters/{IUpdatable, IPlayerInput, PlayerInputMain, PlayerMotor}`,
-  `Domain/Player.cs` (`Player`, `PlayerLookRotator`, `PlayerMovement`). Move/look logic is real and
-  non-trivial; `StartGamePlay()` is unfinished (player prefab spawn + `PlayerMotor.Construct` are
-  TODO), so `PlayerMotor` currently has no `Player` to read.
+- **What exists today (2026-11-19):** `Bootstrapper.cs` is the composition root **alone**;
+  `GamePlaySession` lives in `Scripts/UseCases/` and completes `StartGamePlay()` (register
+  `PlayerInputMain` → `Player` → `PlayerMotor`, in that order — registration order is the ordering
+  contract, D-013); `Domain/` holds `Player`, `PlayerMovement`, `PlayerLookRotator`,
+  **`PlayerMotion`** (the velocity owner: control/push/vertical channels + the active push list, D-016),
+  `ActivePush`, `PushPresetData`, `PushType`, `PushKind`, `PushApplication`, `Vector3CurveData`;
+  `InterfaceAdapters/` holds `IGameSettings`/`GameSettings`, `IUpdatable`, `IPlayerInput`,
+  `PlayerInputMain`, `HydrantPush` (moved in from `Scripts/Unity/` with its `.meta` GUID `75c4001556e8f7e47aca53aa50ef5170`,
+  which is what the scene binds; `Scripts/Unity/` and `Scripts/Application/` are now deleted), and `PlayerMotor` gutted to a shell: `Move(Velocity * dt)`, report
+  `CollisionFlags.Sides` + `isGrounded` into the domain, forward `ApplyForce` to `Player.ReceivePush`.
+  `Assets/_Core/Tests/` holds the push-model tests (T1–T13) and its asmdef. **None of this is
+  verified** — see ARCHITECTURE's §"Written, not verified" row and the push-model section of TODO.md.
+  Two rules landed in the same session and are load-bearing: `Player` is **composition and forwarding
+  only** — the jump gate lives in `PlayerMotion` and `PlayerMovement` exposes just the request
+  (`IsJumpRequested`; D-021, because `PlayerMotion` depends on `PlayerMovement`, so Movement cannot
+  apply the push without a construction cycle); and the push channel decays at **`GroundDrag` while
+  grounded, `AirDrag` while airborne**, ground friction in the ground plane only (D-020 — one rate for
+  both is the "the floor is ice" slide, and 4/s is the current authored value, tuning range in the
+  field's comment). `PushApplication.Applies` is an **open question**, not yet cut (TODO).
 - **`Player.cs` at repo root is a stray copy** of `Assets/_Core/Scripts/Domain/Player.cs` (untracked,
   no `using` directives, outside `_Core` — it does not compile on its own). Read the `_Core` file;
   never edit the root one (D-003, G-006).
-- `Scripts/Application/` exists and is empty while ARCHITECTURE's table names `Scripts/UseCases/` —
-  pick one in the same change that creates the folder, don't leave both.
-- **`IFixedUpdatable` + the fixed-step host is decided and not built** (D-013); the first physics
-  pillar (extinguisher spray forces) implements it, not re-decides it.
+- `Scripts/Unity/` and `Scripts/Application/` are **deleted** (2026-11-19, same session): `HydrantPush`
+  moved into `InterfaceAdapters/` with its `.meta`, GUID `75c4001556e8f7e47aca53aa50ef5170` intact, so the
+  scene's component reference survives; `Scripts/UseCases/` is the chosen Application folder (D-012, D-014).
+  It moved as a delete + new file rather than `git mv` (the classifier refused that command), so git will
+  show it as a rename by content — nothing Unity-side depends on how it moved.
+- **There is no fixed step** (D-018 supersedes the `IFixedUpdatable` clause of D-013): integration is
+  dt-driven on the single `GameUpdater` tick, frame-rate independence asserted by tests at 1/60, 1/30,
+  1/120. **Web builds are deferred to one dedicated pass** (D-019): systems are built and verified in
+  the editor for now, the honest commit status line is *editor-verified, web-unverified*, and the
+  budget-before-code rule stays in force.
 - ARCHITECTURE's §"Current reality vs decided" table is the authoritative snapshot. When the shape
   moves, update ARCHITECTURE.md in the same change (D-015).
 

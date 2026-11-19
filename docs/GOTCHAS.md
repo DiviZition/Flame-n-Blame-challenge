@@ -19,13 +19,18 @@ discover a hard restriction — it goes here so the next person (human or AI) do
 ---
 
 ## G-001: Game asmdef references an editor-only assembly
-- **Status:** Open
+- **Status:** Resolved (2026-11-19) for the editor-only reference and the `name` typo; the vendor-demo
+  reference hazard stays Open
 - **What happened / will happen:** `Assets/_Core/FlameNBlame.asmdef` line 9 references
   `GUID:b93f844d45cfcc44fa2b0eed5c9ec6bb` = `com.unity.ide.visualstudio` **editor** assembly.
   With no scripts in `_Core` it compiles fine, but the first script added there will make
   Unity refuse to compile the runtime assembly for player builds.
 - **Rule:** Remove that reference before/when adding the first script under `_Core`; editor-only
   code goes in its own asmdef under `_Core/Editor` with `includePlatforms: ["Editor"]`.
+- **Resolution (2026-11-19):** the editor-only reference is gone and the `name` field is the correct
+  `FlameNBlame` (GUID references make renaming safe). The **standing** half of this entry: the
+  reference list includes `CartoonFX`, a vendor **demo** assembly, so an asset-store update can delete
+  it and break our compile. Verify the reference list against the code, not the docs, and drop it.
 
 ## G-002: Invalid rootNamespace in FlameNBlame.asmdef
 - **Status:** Resolved (2026-11-17)
@@ -81,13 +86,19 @@ discover a hard restriction — it goes here so the next person (human or AI) do
   (e.g. the duplicate `Flame_Blame-challenge.slnx`), do it explicitly with `git rm --cached`.
 
 ## G-008: Test framework is transitive, not a direct dependency
-- **Status:** Open
+- **Status:** Resolved (2026-11-19)
 - **What happened / will happen:** `com.unity.test-framework` 1.8.0 is present in `packages-lock.json`
   only as a transitive dependency (depth 1), so the Test Runner works, but relying on a transitive
   dep is fragile — an unrelated package update could drop it.
 - **Rule:** When the first tests are written, add `com.unity.test-framework` to `Packages/manifest.json`
   explicitly and create a `_Core/Tests` asmdef referencing `UnityEngine.TestRunner` +
   `UnityEditor.TestRunner`.
+- **Resolution:** Done 2026-11-19 as part of D-016: `com.unity.test-framework` 1.8.0 is a direct
+  dependency in `Packages/manifest.json`, and `Assets/_Core/Tests/FlameNBlame.Tests.asmdef`
+  (`overrideReferences: true`, `precompiledReferences: ["nunit.framework.dll"]`,
+  `defineConstraints: ["UNITY_INCLUDE_TESTS"]`, `autoReferenced: false`) holds the push-model tests.
+  The lesson stands: a transitive dep can be dropped by an unrelated package update, so a dependency
+  tests rely on must be declared explicitly.
 
 ## G-009: `CLAUDE.md` cannot live in `docs/`
 - **Status:** Avoided
@@ -120,3 +131,28 @@ discover a hard restriction — it goes here so the next person (human or AI) do
   and adding an NV module to a feedback prefab also re-creates the code dependency D-010 dropped.
 - **Rule:** Never gate game feel on haptics, and never add `NiceVibrations*` modules to an
   `MMF_Player`. Express impact through camera, audio, particles and time instead (D-007, D-010).
+
+## G-012: `CharacterController` keeps no velocity — a force's timer is not a physics rule
+- **Status:** Open
+- **What happened / will happen:** A 2-second hydrant preset expired while the player was still in
+  flight and velocity dropped to **zero in mid-air** — it flew fast, slowed, then stopped dead. That
+  is the feel of no inertia, and the cause is conceptual: the force's `Duration` was treated as
+  authoritative for velocity, so the force *ending* deleted the momentum it created. Unity's
+  `CharacterController.Move` teleports by the vector handed to it and stores nothing — no velocity,
+  no mass, no `AddForce`, no air suppression. `isGrounded` is also not contact: a wall hit is
+  invisible if the shell reports only grounded, so half of the absorption rule is missing.
+- **Rule:** **Never let a force's timer zero velocity — only contact zeroes momentum** (grounded
+  absorbs the vertical and push-Y; `CollisionFlags.Sides` absorbs the pushed X/Z and leaves the
+  player's own control velocity). The shell must report `CollisionFlags` **sides**, not just
+  `isGrounded`. Momentum lives in our own domain state (`PlayerMotion`), decays by authored drag and
+  saturates at authored `MaxPushSpeed`; `Duration` ends the *adding*, never the velocity (D-016).
+- **Also learned here:** a preset authored with **no curve at all** must read as a flat constant
+  force (the envelope evaluates to 1), never as a null crash; and an impulse re-fired every 0.1 s
+  stays **one** entry, because replace-per-`Type` resets progress — author a *flat* curve for a
+  constant shove, a decay envelope for a one-shot puff.
+- **Learned next to it, same system (2026-11-19):** the missing half of "only contact zeroes momentum"
+  was *how fast*. With one decay rate (`AirDrag`) the push channel kept 2.5 m/s two seconds after a
+  10 m/s launch while the control channel stopped at 12/s, and the player **skated like the floor was
+  ice** after any push that was not straight up. Rule: the push channel decays at authored `GroundDrag`
+  while grounded and `AirDrag` while airborne, and ground friction acts in the **ground plane only** —
+  touching the vertical component would eat a jump fired on the same tick (D-020, test T13).

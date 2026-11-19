@@ -26,7 +26,7 @@ Transform:
   m_GameObject: {fileID: 5576558638705731597}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.672, z: 0}
+  m_LocalPosition: {x: 0, y: 1.672, z: 0.138}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -58,7 +58,7 @@ MonoBehaviour:
   Lens:
     FieldOfView: 100
     OrthographicSize: 5
-    NearClipPlane: 0.2
+    NearClipPlane: 0.1
     FarClipPlane: 1000
     Dutch: 0
     ModeOverride: 0
@@ -123,35 +123,9 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7bb8fee06470739449a07a58093305e1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: FlameNBlame-asmdf::Flame_n_Blame_Challenge.Adapters.PlayerMotor
+  m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.PlayerMotor
   _controller: {fileID: 4619265932195510285}
-  _rb: {fileID: 8180318731185970881}
   _cameraHolder: {fileID: 747750127075177749}
-  <Gravity>k__BackingField: 19.62
-  <GroundedGravity>k__BackingField: -2
-  <JumpPreset>k__BackingField:
-    Type: 0
-    Curve:
-      X:
-        serializedVersion: 2
-        m_Curve: []
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-      Y:
-        serializedVersion: 2
-        m_Curve: []
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-      Z:
-        serializedVersion: 2
-        m_Curve: []
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-    Duration: 0
-    IgnoreOrientation: 0
 --- !u!143 &4619265932195510285
 CharacterController:
   m_ObjectHideFlags: 0

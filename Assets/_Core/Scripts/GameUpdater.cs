@@ -14,10 +14,10 @@ namespace Flame_n_Blame_Challenge.Adapters
             _updatablesToRemove = new Queue<IUpdatable>(4);
         }
 
-        public void Update(float time, float deltaTime)
+        public void UpdateLogic(float time, float deltaTime)
         {
             for (int i = 0; i < _updatables.Count; i++)
-                _updatables[i].Update(time, deltaTime);
+                _updatables[i].UpdateLogic(time, deltaTime);
 
             RemoveStagedUpdatables();
         }

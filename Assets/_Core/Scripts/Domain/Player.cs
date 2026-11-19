@@ -1,137 +1,51 @@
 ﻿using Flame_n_Blame_Challenge.Adapters;
-using System;
 using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Domain
 {
+    /// Composes the player's parts and forwards the two things the shells exchange with it: contact in,
+    /// pushes in. It holds **no rules** — the jump, the contact absorption and the velocity belong to the
+    /// parts (D-016, D-017). A class whose only job is composition and forwarding is also the reason no
+    /// shell may implement any of it (D-012). Registration by the session, never self-registration
+    /// (ARCHITECTURE §4).
     public class Player : IUpdatable
     {
-        // PlayerWorldInteract
-        // PlayerItemControl
-        public readonly PlayerMovement Movement;
         public readonly PlayerLookRotator LookRotation;
-        // PlayerHealth
-        // PlayerStatuses
+        public readonly PlayerMovement Movement;
+        public readonly PlayerMotion Motion;
 
-        private Vector3 _pendingImpulse;
+        public Vector3 Velocity => Motion.Velocity;
 
-        public Player(IPlayerInput input, IGameSettings gameSettings)
+        public Player(IPlayerInput input, IGameSettings settings)
         {
-            LookRotation = new PlayerLookRotator(input, gameSettings);
-            Movement = new PlayerMovement(input, gameSettings, LookRotation);
+            LookRotation = new PlayerLookRotator(input, settings);
+            Movement = new PlayerMovement(input, settings, LookRotation);
+            Motion = new PlayerMotion(Movement, settings);
         }
 
-        public void Update(float time, float deltaTime)
+        /// Order within the composite: look, then the intent that reads it, then the velocity that reads
+        /// the intent. `PlayerMotion` ticks the player's own push (the jump) inside its own step, so the
+        /// whole player is one call and one order (D-013).
+        public void UpdateLogic(float time, float deltaTime)
         {
-            LookRotation.Update(time, deltaTime);
+            LookRotation.UpdateLogic(time, deltaTime);
+            Movement.UpdateLogic(time, deltaTime);
+            Motion.UpdateLogic(time, deltaTime);
         }
 
-        public void ApplyExternalImpulse(Vector3 worldImpulse)
+        /// Every push source reaches the player through here and nothing else: the hydrant, the spray,
+        /// debris. The player's own push (the jump) is fired by `PlayerMotion` itself.
+        public void ReceivePush(PushPresetData preset, Quaternion worldOrientation)
         {
-            _pendingImpulse = worldImpulse;
+            Motion.ApplyPush(preset, worldOrientation);
         }
 
-        public Vector3 ConsumePendingImpulse()
+        /// One contact report feeds both halves of the domain that care about the ground: the locomotion
+        /// intent (air speed) and the motion rules (what absorbs momentum, what re-arms the jump).
+        public void ReportContact(bool grounded, bool sideContact)
         {
-            var impulse = _pendingImpulse;
-            _pendingImpulse = Vector3.zero;
-            return impulse;
+            Movement.SetIsGrounded(grounded);
+            Motion.ReportContact(grounded, sideContact);
         }
-    }
-
-    public class PlayerLookRotator : IUpdatable
-    {
-        private readonly IPlayerInput _input;
-        private readonly IGameSettings _settings;
-
-        public float Yaw { get; private set; }     // degrees, around Y
-        public float Pitch { get; private set; }   // degrees, up/down
-
-        // Convenient world-space directions (Y = 0)
-        public Vector3 Forward => Quaternion.Euler(0f, Yaw, 0f) * Vector3.forward;
-        public Vector3 Right => Quaternion.Euler(0f, Yaw, 0f) * Vector3.right;
-
-        public PlayerLookRotator(IPlayerInput input, IGameSettings settings)
-        {
-            _input = input;
-            _settings = settings;
-        }
-
-        public void Update(float _, float deltaTime)
-        {
-            // Mouse delta is expected in the input port
-            Vector2 lookDelta = _input.LookDelta;
-
-            Yaw += lookDelta.x * _settings.LookSensitivity;
-            Pitch -= lookDelta.y * _settings.LookSensitivity;   // inverted Y is common
-
-            Pitch = Mathf.Clamp(Pitch, _settings.LookPitchBounds.x, _settings.LookPitchBounds.y);
-        }
-    }
-
-    public class PlayerMovement 
-    {
-        private readonly IPlayerInput _input;
-        private readonly IGameSettings _settings;
-        private readonly PlayerLookRotator _look;
-
-        public Vector3 DesiredVelocity => CalculateDesiredVelocity();
-        public bool IsGrounded { get; private set; }
-        public bool IsSprinting => _input.IsRunning && IsGrounded;
-        public bool IsJumping => _input.IsJumping && IsGrounded;
-
-        public PlayerMovement(IPlayerInput input, IGameSettings settings, PlayerLookRotator look)
-        {
-            _input = input;
-            _settings = settings;
-            _look = look;
-        }
-
-        public void SetIsGrounded(bool isGrounded) => IsGrounded = isGrounded;
-
-        private Vector3 CalculateDesiredVelocity()
-        {
-            Vector2 input = _input.InputDirection;
-
-            Vector3 horizontal = 
-                _look.Forward * input.y + 
-                _look.Right * input.x;
-
-            horizontal *= GetSpeed();
-
-            return new Vector3(horizontal.x, 0, horizontal.z);
-        }
-
-        private float GetSpeed()
-        {
-            if (IsGrounded == false)
-                return _settings.PlayerSpeedInAir;
-            else if (IsSprinting)
-                return _settings.PlayerSpeedSprint;
-            else
-                return _settings.PlayerSpeedBase;
-        }
-    }
-
-    public class ForcePreset
-    {
-        public PushForceType Type;
-        public PushForceInteraptionType InterationType;
-        public float Duration;
-        public float Progress;
-    }
-
-    public enum PushForceType
-    {
-        PlayerJump,
-        HydrantPush,
-        Extinguisher,
-    }
-
-    public enum PushForceInteraptionType
-    {
-        None,
-        OnGrounded,
-        Override,
     }
 }
