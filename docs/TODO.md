@@ -1,210 +1,180 @@
-# TODO.md — Tasks To Remember
+# TODO.md — The Work List
 
-Living checklist. Add anything we must not forget; strike through or move to "Done" when finished.
+The one place for work: what is done, what is in progress, what is next. **Bugs live here too** (the
+`B-` ids from the retired BUGS.md are kept). One line per item, with the date it was added.
 
 **Rules:**
-- Every entry: one line, starts with `- [ ]` (open) or `- [x]` (done), with a date when added.
-- If a task is actually a bug, put it in BUGS.md instead. If it's a decision, put it in DECISIONS.md.
-- Review the list at the start of each working session; prune stale items.
+- `- [ ]` open, `- [x]` done. Mark done on the date the **test passed**, not the date it was written.
+- Bug statuses: `Open` → `In progress` → `Fixed` → `Verified` (verified = a test/gate run through the
+  Unity CLI). If a fix didn't fix it, back to `Open` and say why on the same line.
+- A decision → DECISIONS.md; the shape of the code → ARCHITECTURE.md; a trap we fell into → GOTCHAS.md;
+  a convention → STYLE.md. **This file holds work only.**
+- Review at the start of every session; prune stale lines.
 
-**Scope is locked** to the four TDD pillars (D-008) and **WebGL is the shipping target** (D-007) —
-checklist items below mirror the TDD's own check-lists, so "done" means *done on web*, not in editor.
+**Scope is locked** to the four pillars (D-008). **WebGL is the shipping target** (D-007): "done" means
+done on web. Until B-001 is fixed the honest line is *editor-verified, web-unverified* (D-019).
 
 ---
 
-## High priority (blocking — do first)
+## Bugs
 
-- [ ] 2026-11-16 — **B-001**: give WebGL a quality level that points at `Web_RPAsset` — web build currently has no render pipeline at all (G-010, D-009)
-- [ ] 2026-11-16 — **The design contract is missing from the repo.** `docs/TDD.md` and
-      `docs/Preproduction.md` were never copied in (the write was blocked mid-session), and the
-      originals are no longer in `D:\Downloads\` — find them, or restate the contract from
-      DECISIONS D-008 + `README.md` and log that as a decision. Until then nothing cites TDD §numbers
-      as if the file existed. The root `DECISIONS/GOTCHAS/BUGS/TODO/STYLE.md` copies are deleted in the
-      working tree but unstaged, and `docs/` is still untracked — commit the move.
-- [ ] 2026-11-16 — Fix `FlameNBlame.asmdef` editor-only reference (G-001) — **now urgent, scripts exist**
-- [x] 2026-11-16 — Change asmdef `rootNamespace` to a valid identifier (G-002) — done as
-      `Flame_n_Blame_Challenge`, which is now the project namespace root by decision (D-014)
-- [x] 2026-11-19 — Fix the asmdef `name` field (G-001) — done, `FlameNBlame`; references are
-      GUID-based so the rename is safe. Still open under G-001: the **CartoonFX** vendor *demo*
-      reference is a hazard — an asset-store update can delete it and break our compile. Check the
-      reference list against the code, not the docs, and drop it.
-- [x] 2026-11-19 — Apply the composition shape to the existing scaffolding (ARCHITECTURE.md §8, D-016) —
-      done: `Scripts/UseCases/GamePlaySession.cs` + `Scripts/Domain/{Player,PlayerMovement,PlayerLookRotator,PlayerMotion,
-      PushPresetData,PushType,PushKind,PushApplication,Vector3CurveData,ActivePush}.cs`, one type per file,
-      `StartGamePlay()` complete, registration order input → player → motor, disposal on teardown.
-      `PlayerState` never existed; `IGameSettings` split out of `GameSettings.cs`.
-      **Still open:** `Bootstrapper` is not in `FnB_Gameplay.unity` (see below), so nothing ticks.
-- [x] 2026-11-19 — ~~Add `IFixedUpdatable` + the single `FixedUpdate` host~~ — **struck by D-018**:
-      integration is dt-driven on the single `GameUpdater` tick. Frame-rate independence is asserted by
-      test T8 at 1/60, 1/30, 1/120 (within 5%). Re-opens only as a new decision for a system that
-      needs deterministic stepping.
-- [ ] 2026-11-16 — Create first gameplay scene, add to Build Settings (G-003)
-- [ ] 2026-11-16 — Add the WebGL module/build profile and get one empty-scene web build deploying, before any gameplay exists (D-007)
-- [ ] 2026-11-16 — Set `companyName` in ProjectSettings (currently `DefaultCompany`) — it becomes the web build folder + product path
-- [ ] 2026-11-16 — Create `.claude/skills` junction → `Assets/Feel/Skills` (G-004)
+- [ ] **B-001** `Open` — **WebGL has no render pipeline.** Quality level 0 "Mobile" points at a deleted
+  `Mobile_RPAsset` GUID; `Web_RPAsset` is bound only to the "PC" level, which excludes WebGL;
+  `GraphicsSettings.asset` has no fallback. A web build renders magenta while the editor looks fine
+  (`m_CurrentQuality: 1`). Fix: give WebGL a level pointing at `Web_RPAsset`, then re-cut the levels for
+  web (G-010, D-009). **Every web measurement is worthless until this is done.**
+- [ ] **B-003** `Open` — **the push channel never saturates.** `PlayerMotionTests.ContinuousSpray_
+  Saturates_WithoutStackingPushes` fails at `PlayerMotionTests.cs:234`: *"the shove must converge, not
+  keep growing (early 6.556155, late 7.865624)"*. `MaxPushSpeed` is authored but never clamped in
+  `PlayerMotion`. Repro: `unity cmd test run --mode editor` (synchronous, EditMode, no scene load),
+  result `1 of 19 failed` (deterministic, 0.006 s).
+- [ ] **B-004** `Open` — **`PlayerMotor` is attached to nothing.** The scene has no `Player` GameObject
+  (`unity cmd gameobject find --type PlayerMotor` → null), so nothing moves in Play Mode. The tick runs
+  (`Bootstrapper` is on `=== System`), the domain computes velocity, no shell consumes it. Same work as
+  the first item below.
+- [x] **B-002** `Verified 2026-11-20` — the tree did not compile (two duplicate `ForcePreset` drafts,
+  `using NUnit.Framework` in the runtime asmdef, a dangling statement in `Bootstrapper`). Fixed by
+  D-016; verified by 5 CLI gates: `unity cmd script recompile` → `up_to_date`, `console get` →
+  `compilationFailed: false`. The batch-mode gate stays unrun, and `autoRefresh` is **disabled**, so the
+  CLI gate is the standing check — run it after every edit.
+
+## Now (blocking, in this order)
+
+- [ ] **B-004:** create the `Player` GameObject under `=== World/GrayBox Level` near `Player Spawn
+  Point` (world 2.84, 0, 7.78), attach `PlayerMotor` + `CharacterController`, save the scene.
+- [x] 2026-11-20 — **Suite made EditMode** (`includePlatforms: ["Editor"]` in
+  `FlameNBlame.Tests.asmdef`): `unity cmd test run --mode editor` → **19 tests, 18 passed, 1 failed**
+  (B-003), synchronous, no scene load, ~0.11 s (D-026).
+- [ ] **B-003:** clamp the push channel at `MaxPushSpeed` in `PlayerMotion`, re-run the suite.
+- [ ] **B-001:** fix the WebGL pipeline routing, then set up the WebGL module/build profile and make the
+  first web build (the pipeline asset is still PC-tuned, so re-tune in the same pass — see below).
+- [ ] Add `Assets/_Core/Scenes/FnB_Gameplay.unity` to **Build Settings** (G-003) — on WebGL an empty
+  scene list ships a page that loads and shows nothing.
+- [ ] **Editor feel checks (5)**, each verified with `unity cmd capture scene_view/game_view`:
+  (a) launch direction follows the hydrant's rotation, not the player's facing; (b) the player keeps
+  moving after a 2 s preset ends; (c) velocity dies on **landing**, not in mid-air; (d) input steers in
+  flight at the reduced air speed; (e) a 0.1 s spray for 3 s **saturates**, not accelerates (B-003).
+  **The tests for this mechanic are written after the user approves it** (D-026) — the push-model suite
+  is edited along with the feel pass, not ahead of it.
+- [ ] **Re-tune `GroundDrag`** (authored 4, in `GameSettings` + `Game Settings.asset`): ~1 = a long skid,
+  past 8 = a hard stop; `GroundFriction` stays authored separately (D-020).
+- [ ] **Recover the design contract.** `docs/TDD.md` + `docs/Preproduction.md` are not in the repo and
+  the originals are gone, so the contract exists only as D-008 + `README.md`. Find them, or restate the
+  contract as a new DECISIONS entry; until then nothing cites a "TDD §n" as if the file existed.
+- [ ] **Asmdef housekeeping:** drop the `CartoonFX` vendor-demo reference (an asset-store update can
+  delete it and break our compile) and fix the `name` typo `FlameNBlame-asmdf` (G-001, D-014).
+- [ ] **`Player.prefab`:** remove the orphan `JumpPreset` block (D-017); decide the non-kinematic
+  Rigidbody sitting beside the `CharacterController` (delete it, or make it kinematic) and log the call.
+- [ ] **Delete the stray `Player.cs` at repo root** — an untracked copy of
+  `Assets/_Core/Scripts/Domain/Player.cs` that does not compile on its own (G-006).
+- [ ] `Move Assets/_Core/Scripts/X Bot@Falling.fbx` to `Assets/_Core/Art/…` and rename per STYLE.md.
+- [ ] Set `companyName` in ProjectSettings (now `DefaultCompany`) — it becomes the web build folder and
+  product path, so set it before the first web build.
+
+## The user's calls
+
+- [x] 2026-11-20 — **`House Blockade` deleted** from `FnB_Gameplay.unity` by the user's call
+  (`unity cmd gameobject delete` → `scene save`; verified in the Scene View capture). The CLI
+  scene-driving proof stands (D-023).
+- [x] 2026-11-20 — **Unity skills deleted** — `unity-cli` + `unity-pipeline` removed from
+  `.opencode/skills/` and `~/.claude/skills/` (D-025). Nothing Unity generates in the repo now, so the
+  git-tracking question is closed. Feel's 8 skill folders stay in `Assets/Feel/Skills/` (G-004).
+- [ ] **Open question, not decided: does `PushApplication`/`Applies` exist at all?** Its `GroundedOnly`
+  was used by exactly one preset (the jump), and D-021's gate makes that use redundant; the spray wants
+  `Always`. Cutting it removes an enum file, one DTO field, one branch in `TickPushes` and test T9 — the
+  requirement T9 asserts was invented, never stated by the design. Nothing cut yet.
+
+## Phase 1 — base (pillar 1)
+
+- [ ] FPS controller: move, mouse-look, jump — [x] the jump gate and the push model exist (D-016, D-021)
+- [ ] Interaction (E / LMB) with props and the hydrant
+- [ ] One carry slot: pick up / hold / activate a single item
+- [ ] `Burnable` object state: ignite → blacken → collapse and disappear (object state, never a fluid
+  sim, D-008)
+- [ ] Fire spread: a burnable near fire ignites after ~10 s, so fire propagates itself
+- [ ] Extinguish path (temporary/brute-force is fine at this stage)
+- [ ] Fire visuals + sound
+- [ ] Location: a house full of burnables + a street with the hydrant; music + ambience
+- [ ] Menu with a Play button; load/unload of the gameplay scene
+- [ ] Game state control: menu / in-game / pause
+- [ ] Goal: extinguish the house and walk out (scoring stays deferred, D-008)
+
+## Phase 2 — extinguisher, the main system (pillar 2)
+
+- [ ] Take / carry / throw, Rigidbody-based
+- [ ] Spray: a Particle System stream that extinguishes fire
+- [ ] Spray also applies physical force to objects **and to the player**
+- [ ] **Spray shove convention (D-016, G-012):** re-call `ReceivePush` every 0.1 s with `Duration: 0.1`
+  and a **flat** `Curve`, direction refreshed from the aim each call — replace-per-`Type` keeps one
+  entry, `MaxPushSpeed` makes it saturate (B-003 is this rule's gate). A decay envelope is only for a
+  one-shot puff.
+- [ ] Extra reaction on hard impact / fall (foam, recoil)
+- [ ] Noticeable feedback: sound, particles, camera — no haptics (G-011)
+- [ ] Optional if time allows: consumable resource, "Turbo" mode
+
+## Phase 3 — hydrant catapult, the wow effect (pillar 3)
+
+- [ ] Hydrant rotatable 360°, water gushing continuously from the nozzle
+- [ ] Block-the-water interaction: camera + audio strain escalate the longer it is held
+- [ ] Burst: a strong impulse launching the player along the nozzle + upward
+- [ ] Loss of player control during flight and landing (optional; the control-lock idea was cut by D-016,
+  re-deciding needs a new entry)
+- [ ] Verify it does not break level collisions critically
+
+## Phase 4 — polish, stability, submission
+
+- [ ] Fix critical bugs; balance forces and speeds
+- [ ] Minimal VFX/SFX pass
+- [ ] WebGL stability pass: long-session memory growth, shader-variant load hitches, reload-on-click
+- [ ] Submission assets: scenario, video ≤ 5 min, a short write-up on what was made, what was cut on
+  purpose, and how AI was used
 
 ## WebGL budget & retune (D-007, D-009)
 
-- [x] 2026-11-19 — **Player push model budget, written before code (D-016):** 8 simultaneous active
-      pushes (four hydrant pillars + headroom), `List<ActivePush>` capacity 8 with index swap-remove and
-      struct entries, **no per-tick allocation** (no LINQ, no closures, no per-tick `new`),
-      `MaxPushSpeed` + `MaxSimultaneousPushes` as the anti-accumulation guards, cost target
-      **< 0.05 ms per player per tick** (≈8 × 3 `AnimationCurve.Evaluate` + ~12 float ops). Verified by
-      test T12 (10 000 ticks, 8 pushes, `GC.GetTotalMemory` delta under 20 000 bytes).
-- [ ] 2026-11-16 — Write the remaining perf budgets **before** implementing each system: max simultaneous
-      burning objects, max live particles for spray/fire, max awake rigidbodies, target frame time — one
-      shared budget for fire + particles + physics (D-007).
-- [ ] 2026-11-16 — Retune `Web_RPAsset`/`Web_Renderer` for web: the rename kept PC-grade settings (HDR, shadow distance, post-processing) under a web name — strip and measure
-- [ ] 2026-11-16 — Re-cut quality levels for a web-only target (they are still named `Mobile`/`PC`) so what we test is what ships
-- [ ] 2026-11-16 — **Suspended by D-019 (2026-11-19)** — Make a WebGL build part of every session's
-      end-of-work check, not a milestone. Un-suspend when B-001 is fixed; until then the honest commit
-      status line is **editor-verified, web-unverified**. The budget-before-code rule below stays in force.
+- [x] 2026-11-19 — **Player push-model budget written before code:** 8 simultaneous pushes,
+  `List<ActivePush>` capacity 8 with swap-remove and struct entries, no per-tick allocation, cost target
+  < 0.05 ms per player per tick. Verified by test T12.
+- [ ] Write the remaining perf budgets **before** code: max burning objects, live particles for
+  spray/fire, awake rigidbodies, target frame time — one shared budget (D-007).
+- [ ] Retune `Web_RPAsset`/`Web_Renderer` for web: the rename kept PC-grade settings (HDR, shadow
+  distance, post-processing) under a web name — strip and measure.
+- [ ] Re-cut the quality levels for a web-only target (they are still named `Mobile`/`PC`) so what we
+  test is what ships (B-001).
+- [ ] Web-build-every-session is **suspended** by D-019; un-suspend when B-001 is fixed. The
+  budget-before-code rule stays in force.
 
-## Player push model (D-016, D-017) — verification & follow-ups
+## Deferred (needs a DECISIONS entry before entering scope, D-008)
 
-The code, the tests and the docs are written; the **verification gates are not run**, so this is
-unfinished work, not done work. Check them in this order.
-
-- [ ] 2026-11-19 — **Run the headless compile gate** (closes B-002):
-      `rtk proxy "/x/Programs/Unity/Editors/6000.6.5f1/Editor/Unity.exe" -batchmode -quit -nographics -projectPath "X:/Workspace/Projects/OwnProjects/Flame-n-Blame-challenge" -logFile -`
-      → exit 0 and **no `error CS` lines**. Not run: the Bash/PowerShell safety classifier timed out on
-      every command that could change anything (destructive and Unity runs), while read-only calls like
-      `git status` and reading files worked. So this is classification being unavailable, not the tool
-      being missing — `rtk`/Unity are verified in CLAUDE.md. Until it runs, B-002 is **Fixed on paper,
-      not Verified** and no claim in this change should be read as "compiles".
-- [x] 2026-11-19 — **Move `HydrantPush.cs` + its `.meta`** (GUID `75c4001556e8f7e47aca53aa50ef5170`) from
-      `Scripts/Unity/` into `InterfaceAdapters/`, then delete `Scripts/Unity/`, the placeholder comment
-      file at `InterfaceAdapters/HydrantPush.cs`, and the empty `Scripts/Application/` (ARCHITECTURE's
-      table names one folder; don't leave both). **Done in the same session, later in it:** `git mv` itself
-      was refused by the classifier, but `rm` was allowed, so the move went as "write the body + its `.meta`
-      (same GUID, hand-written in the two-line `fileFormatVersion`/`guid` form) at the destination, then
-      delete the old pair and the two empty folders plus their folder metas". Only one `HydrantPush.cs`
-      exists now, and the scene's component reference still resolves — nothing Unity-side cares that git
-      will record it as a delete + add rather than a rename.
-- [ ] 2026-11-19 — **Run the PlayMode tests** T1–T13: `-runTests -testPlatform PlayMode -testResults Results.xml`
-      (no `-quit`; tests need the `_Core/Tests` asmdef). T1, T2, T5, T6, T8 are the ones a broken model
-      cannot pass; **T13 (`GroundContact_AbsorbsAShove_TheAirDoesNot`) is the one a one-decay-rate model
-      cannot pass**, i.e. it is the gate for the ice fix (D-020).
-      Still not run — see the compile-gate item below for why.
-- [x] 2026-11-19 — **Found while writing the tests, before any ran:** four assertions that contradicted
-      the model or their own preconditions, and were rewritten. Not implementation-matching tests —
-      the fixes removed self-contradictions the first pass could not both satisfy and mean:
-      - T2 asserted an **absolute** control velocity across an airborne tick; control drifts toward the
-        reduced air speed there (the input rule's doing, not the wall's), so the wall's effect is now a
-        **diff against the identical run that meets no wall** (`LaunchAgainstWall(bool)`).
-      - T10d asserted both "landing absorbs the launch" and "the jump re-arms on the next contact" with
-        the **press still held** — D-017's own rule (one press per contact, re-armed on the next) means
-        the landing tick also fires a new launch, so the two are not separable there. Split by press
-        state, and the auto-rebound is now asserted on its own (`PressHeldThroughALanding_ReBounces`).
-      - T10f and T11 mutated `Mass` **after** `PlayerMotion` was constructed; the domain reads authored
-        numbers at construction (D-012), so a heavier/degenerate player is now **built** with those
-        values (`PlayerJumpTests` builds inline, `PlayerMotionTests` has `Rebuild(mass)`).
-      - T3, T5, T9 now set `GroundDrag = 0f` next to `AirDrag = 0f`: the stub default mirrors the
-        authored rate, so a test that wants exact channel math has to say it wants a drag-free world.
-- [ ] 2026-11-19 — **Re-tune `GroundDrag`** (authored 4, `GameSettings` + `Game Settings.asset`): how
-      fast the ground absorbs a shove. In-editor the launch is 800 N / `Mass` 80 = 10 m/s. 4 → down to
-      walking speed in ~0.12 s, at rest inside ~1 s. Range the field's comment states: ~1 for a long
-      skid, past 8 for a hard stop. Authored apart from `GroundFriction` on purpose — sharing the rate
-      makes a stop-press drag the shove to a halt too (D-020).
-- [ ] 2026-11-19 — **Open question, not decided: does `PushApplication`/`Applies` exist at all?** Its
-      `GroundedOnly` value was used by exactly one preset (the jump), and D-021's gate in `PlayerMotion`
-      makes that use redundant; the extinguisher spray wants `Always`, and no pillar has a source that
-      wants "decline this push while airborne". Deleting the axis removes an enum file, one DTO field
-      (asset + stub + presets + scene YAML), one branch in `TickPushes`, and test T9 — the requirement
-      T9 asserts was invented, never stated by the design. The alternative (a `UseCases` source class
-      per push, each owning its own start/stop conditions) is the right shape **where a source has
-      scenario logic** — the spray (aim + hit test + interval) and the hydrant charge, both phase 2 —
-      and the wrong shape for the jump, whose whole rule is a three-condition gate. The rule either way,
-      already in ARCHITECTURE: **a source decides whether to fire; `PlayerMotion` decides only what a
-      fired push does.** Awaiting the user's call, so nothing here is cut yet.
-- [ ] 2026-11-19 — **Editor feel checks (four + one):** (a) launch direction follows the hydrant's
-      rotation, not the player's facing; (b) the player keeps moving after the 2 s preset ends;
-      (c) velocity drops to zero on **landing**, not in mid-air; (d) input still steers during flight at
-      the reduced air speed; then the spray shape — fire a sustained push every 0.1 s for 3 s and confirm
-      the shove **saturates** instead of accelerating away.
-- [ ] 2026-11-19 — **Put `Bootstrapper` in `FnB_Gameplay.unity`** (its GUID is absent from the scene, so
-      no tick runs) and add the scene to Build Settings (G-003). Without this the domain never executes.
-- [ ] 2026-11-19 — **Put `Bootstrapper` in `FnB_Gameplay.unity`** (its GUID is absent from the scene, so
-      no tick runs) and add the scene to Build Settings (G-003). Without this the domain never executes.
-- [x] 2026-11-19 — **Migrate the authored preset in the scene YAML**: done — `_pushPreset` /
-      `_pushDirection` renamed, `IgnoreOrientation` dropped, and the values authored as a **force**:
-      `Force: 800` N·s against `Mass: 80` = 10 m/s along the nozzle, flat envelope X 0 / Y **0.5** / Z
-      **1** (10 m/s forward + 4 m/s up), `Kind: Impulse`, `Applies: Always`, `Duration: 2`. The old Y 10 /
-      Z 30 numbers were absolute velocities and are gone. Re-tune against `GroundDrag` once it is tuned.
-- [ ] 2026-11-19 — Remove the orphan `JumpPreset` block from `Player.prefab` (the field is gone, D-017).
-- [ ] 2026-11-19 — `Player.prefab` has a **non-kinematic Rigidbody** (`useGravity: 0`, constraint mask 80,
-      mass 1) beside the `CharacterController`. It does nothing today and fights the shell's `Move()`.
-      Decide: delete it, or make it kinematic, and log the choice in DECISIONS.
-- [ ] 2026-11-19 — **Push-source registry routing** (a domain-side way for a system to reach the player
-      without holding a `PlayerMotor` reference) — deliberately deferred by D-016; today the hydrant calls
-      the shell and the shell forwards.
-- [ ] 2026-11-19 — Phase 3 tuning: hydrant burst `Force`/`Curve` against the authored `Mass`, flight
-      feedback (camera + audio strain escalation), control loss during flight (TDD marks it optional; the
-      control-lock idea was cut by D-016, so re-deciding it needs a new entry).
-
-## Phase 1 — base (TDD §1)
-
-- [ ] 2026-11-16 — FPS controller: move, mouse-look, jump
-- [ ] 2026-11-16 — Interaction (E / LMB) with props and the hydrant
-- [ ] 2026-11-16 — One carry slot: pick up / hold / activate a single item
-- [ ] 2026-11-16 — `Burnable` object state: ignite → blacken → collapse & disappear (explicitly *not* a fluid sim, D-008)
-- [ ] 2026-11-16 — Fire spread: a burnable within proximity of fire ignites after ~10s, so fire propagates itself and forces the player to fight it
-- [ ] 2026-11-16 — Extinguish path (temporary/brute-force is fine at this stage)
-- [ ] 2026-11-16 — Fire visuals + sound
-- [ ] 2026-11-16 — Location: house full of burnables + street with the hydrant; music + ambience
-- [ ] 2026-11-16 — Menu with a Play button; load/unload of the gameplay scene
-- [ ] 2026-11-16 — Game state control: menu / in-game / pause
-- [ ] 2026-11-16 — Goal: extinguish the house and exit (scoring stays deferred — TDD lists it optional)
-
-## Phase 2 — extinguisher, the main system (TDD §2)
-
-- [ ] 2026-11-16 — Take / carry / throw, Rigidbody-based
-- [ ] 2026-11-16 — Spray: Particle System stream that extinguishes fire
-- [ ] 2026-11-16 — Spray also applies physical force to objects **and to the player**
-- [x] 2026-11-19 — **Decided + logged** how player knockback is coupled: **D-016** (pushes enter through
-      `Player.ReceivePush`, the domain owns velocity in `PlayerMotion`, contact absorbs momentum,
-      `MaxPushSpeed` + replace-per-`Type` bound accumulation) + **D-017** (jump is one of the pushes).
-      Follow-ups below, in the push-model section.
-- [ ] 2026-11-16 — **Spray shove convention to implement in phase 2 (D-016, G-012):** re-call
-      `ReceivePush` every 0.1 s with `Duration: 0.1` and a **flat** `Curve`, direction refreshed from the
-      player's aim on every call. Replace-per-`Type` keeps **one** entry; the cap `MaxPushSpeed` makes the
-      shove saturate. Author a decay envelope only for a one-shot puff, fired once.
-- [ ] 2026-11-16 — Extra reaction on hard impact / fall (foam, recoil)
-- [ ] 2026-11-16 — Noticeable feedback: sound, particles, camera (no haptics — G-011)
-- [ ] 2026-11-16 — Optional if time allows: consumable resource, "Turbo" mode
-
-## Phase 3 — hydrant catapult, the wow effect (TDD §3)
-
-- [ ] 2026-11-16 — Hydrant rotatable 360°, water gushing continuously from the nozzle
-- [ ] 2026-11-16 — Block-the-water interaction: camera + audio strain escalate the longer it's held
-- [ ] 2026-11-16 — Burst: strong impulse launching the player along the nozzle + upward
-- [ ] 2026-11-16 — Loss of player control during flight and landing (TDD marks optional)
-- [ ] 2026-11-16 — Verify it does not break level collisions critically (the TDD's own check-list item)
-
-## Phase 4 — polish, stability, submission (TDD §4–5)
-
-- [ ] 2026-11-16 — Fix critical bugs; balance forces and speeds
-- [ ] 2026-11-16 — Minimal VFX/SFX pass
-- [ ] 2026-11-16 — WebGL stability pass: long-session memory growth, shader variant load hitches, reload-on-click behaviour
-- [ ] 2026-11-16 — Submission assets: scenario, video ≤ 5 min, short write-up on what was made, what was cut on purpose, and how AI was used
-
-## Housekeeping
-
-- [ ] 2026-11-16 — `Assets/_Core/Scripts/X Bot@Falling.fbx` is an asset inside the *code* folder with spaces in its name — move to `Assets/_Core/Art/…` and rename per STYLE.md
-- [x] 2026-11-19 — First tests written: `com.unity.test-framework` 1.8.0 added to `Packages/manifest.json`
-      explicitly and `Assets/_Core/Tests/FlameNBlame.Tests.asmdef` created (G-008, D-016).
-- [ ] 2026-11-15 — Optionally remove duplicate tracked `Flame_Blame-challenge.slnx` (G-007)
-
-## Waiting on input
-
-- [ ] 2026-11-16 — Anything outside the four pillars needs a DECISIONS entry before entering scope (D-008); the deferred list is meta/scoring, full co-op, building destruction, ragdoll/IK, the dam
+- [ ] Push-source registry routing (deferred by D-016 — today a source calls the shell and the shell
+  forwards). A `UseCases` source class per push is the right shape **where a source has scenario logic**
+  (spray: aim + hit test + interval; hydrant charge) and the wrong shape for the jump.
+- [ ] Anisotropic ground friction (needs a contact normal, which changes what the shell reports, D-020).
+- [ ] Meta/scoring, full co-op, building destruction, ragdoll/IK, the dam.
+- [ ] A fixed step (`IFixedUpdatable`) — struck by D-018; re-opens only as a new decision for a system
+  that needs deterministic stepping.
+- [ ] Optionally remove the duplicate tracked `Flame_Blame-challenge.slnx` (G-007).
 
 ## Done
 
-- [x] 2026-11-17 — Architecture approach written down: `docs/ARCHITECTURE.md` added as the code map, with D-012 (plain classes + shells + composition root), D-013 (one owned tick + fixed step), D-014 (namespace root `Flame_n_Blame_Challenge`), D-015 (map vs log split); STYLE/GOTCHAS G-002/README index updated to match
-- [x] 2026-11-16 — TDD + preproduction received and confirmed binding; scope locked to FPS controller + extinguisher + hydrant catapult + fire system (D-008)
-- [x] 2026-11-16 — Target platform decided: WebGL from day one, not a late check (D-007)
-- [x] 2026-11-16 — Nice Vibrations kept but dormant; Feel used for juice beyond haptics (D-010)
-- [x] 2026-11-16 — `docs/` folder created, memory docs + design docs + index placed there, root `README.md` written (D-011)
-- [x] 2026-11-16 — Discovered and logged B-001 (WebGL has no render pipeline) + G-010 (renaming a pipeline asset rebinds nothing)
-- [x] 2026-11-15 — Initial `CLAUDE.md` + docs scaffolding (DECISIONS/GOTCHAS/BUGS/TODO/STYLE)
+- [x] 2026-11-20 — **Docs re-scoped, one job per file; BUGS.md merged into this file** (D-024).
+- [x] 2026-11-20 — **CLI scene driving proven end to end**: `gameobject create` → `set_transform` →
+  `component add` → `capture scene_view/game_view`, saved into `FnB_Gameplay.unity`; the test wall
+  (`House Blockade`) was deleted after the user's call (D-023, G-014).
+- [x] 2026-11-20 — **First PlayMode test run through the CLI**: 19 tests, 18 passed, 1 failed (B-003),
+  0.09 s. G-008, D-016.
+- [x] 2026-11-20 — **Compile gate verified, 5 runs**: `unity cmd script recompile` → `up_to_date`,
+  `editor status` → `compiling: false`, `console get` → no `error CS`. B-002 `Verified` (D-022).
+- [x] 2026-11-20 — Unity CLI updated 1.0.0 → 1.0.1; MCP probe done, bridge deliberately left unwired
+  (D-022, G-013); skills went 37 → 2 → **0**: all Unity skill folders deleted from the project and the
+  global folder, the CLI documents itself (D-023, D-025, G-015).
+- [x] 2026-11-19 — Push model + jump written (D-016, D-017, D-020, D-021) and the 19 tests + the
+  `FlameNBlame.Tests` asmdef; `com.unity.test-framework` made a direct dependency (G-008).
+- [x] 2026-11-19 — `HydrantPush` moved into `InterfaceAdapters/` with its `.meta` GUID intact;
+  `Scripts/Unity/` and `Scripts/Application/` deleted (D-012).
+- [x] 2026-11-19 — Composition shape applied: `GamePlaySession.StartGamePlay()` registers
+  `PlayerInputMain` → `Player` → `PlayerMotor`; one type per file; `IGameSettings` split out.
+- [x] 2026-11-17 — Architecture map written (ARCHITECTURE.md, D-012–D-015); namespace root fixed
+  (G-002, D-014); asmdef `name` fixed (G-001).
+- [x] 2026-11-16 — Scope locked to the four pillars (D-008); WebGL from day one (D-007); Nice
+  Vibrations dormant (D-010); `docs/` created (D-011); B-001 + G-010 discovered and logged.
+- [x] 2026-11-15 — Docs scaffolding (DECISIONS/GOTCHAS/TODO/STYLE) + `CLAUDE.md`.

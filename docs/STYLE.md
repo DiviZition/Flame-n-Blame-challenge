@@ -49,6 +49,28 @@ in DECISIONS.md).
 - If a measurement is needed, it happens in a **web build**; profiler numbers from the editor are
   a hint, not evidence (G-010).
 
+## Tests (D-026)
+
+- **EditMode, on code:** `[Test]` plain NUnit on plain C# classes, run with
+  `unity cmd test run --mode editor`. No scene load, no Play Mode, no `[UnityTest]`, no
+  `GameObject`/`Instantiate` in a test. The test asmdef is editor-only
+  (`includePlatforms: ["Editor"]`), which is what makes the suite EditMode.
+- **What gets tests:** Domain rules, UseCases (session orchestration), and **invariants** — the
+  always-true properties of the domain state (`velocity ≤ MaxPushSpeed`, a push outlives its
+  `Duration`, a jump fired on the landing tick survives). **Adapters get none:** a shell has no rules,
+  so a test on a shell asserts Unity's behaviour.
+- **Stubs, not fakes of Unity:** domain classes take ports (`IPlayerInput`, `IGameSettings`) through
+  constructors, so a test builds them with `StubInput`/`StubSettings` and the authored DTOs
+  (`Presets`). Authored numbers are set **before** construction (the domain reads them at
+  construction, D-012) — mutating a settings object afterwards is not a test input.
+- **Assert analytic expectations:** author a value, compute what must follow (`Force / Mass`), assert
+  that. A test that asserts an observed number from a run is a snapshot, not a rule.
+- **Permanent assertions:** frame-rate independence at `dt = 1/60, 1/30, 1/120` within 5% (T8) and the
+  no-per-tick-allocation budget (T12, `GC.GetTotalMemory` delta). A rewrite that breaks either fails.
+- **When:** after the user has played the mechanic and approved it. Tests written before approval are
+  rewritten with every mechanic change — that is the signal they were written too early.
+- Naming: `XTests.Method_Condition_Expectation` (e.g. `ContinuousSpray_Saturates_WithoutStackingPushes`).
+
 ## Unity assets
 
 - New folders/files under `Assets/_Core`: PascalCase, **no spaces** (vendor folders use spaces;
@@ -68,10 +90,14 @@ in DECISIONS.md).
 
 ## Docs
 
-- Everything lives in `docs/` (D-011): **ARCHITECTURE.md for the shape of the code** (layers, tick,
-  Unity boundary — edit it in the same change that moves a layer); DECISIONS.md for architecture calls
-  with why; GOTCHAS.md the moment we get burned; BUGS.md for confirmed bugs; TODO.md for anything we
-  must not forget; `docs/README.md` is the index. Shape → ARCHITECTURE, call → DECISIONS, convention →
-  this file. `CLAUDE.md` stays at repo root and only points here (G-009). Keep them short and current.
-- Design docs (`TDD.md`, `Preproduction.md`) are the contract: read them, don't rewrite them.
-  A change of scope is a new DECISIONS entry, never an edit to the TDD.
+One job per file (D-024), and updating the right one is part of the work, not an afterthought:
+**TODO.md** = the work list, bugs included (`- [ ] B-xxx`, done when the test passes);
+**DECISIONS.md** = §Current structure (folders, namespaces, who talks to what) + the append-only
+decision log with the *why*; **ARCHITECTURE.md** = how to build (edit §Project-Specific Structure in the
+same change that moves a layer); **GOTCHAS.md** = the moment we get burned, with a one-line Rule;
+**STYLE.md** = conventions. `docs/README.md` is the index; `CLAUDE.md` stays at repo root and only
+points here (G-009). There is no `BUGS.md` — it was merged into TODO.md on 2026-11-20. Keep them short.
+
+Design docs (`TDD.md`, `Preproduction.md`) are the contract: read, don't rewrite. A change of scope is
+a new DECISIONS entry, never an edit to the TDD.
+

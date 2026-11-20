@@ -91,89 +91,77 @@ Domain must never reference Application, Adapters, or Drivers.
 > Update it as the concrete architecture takes shape.  
 > Describe current major classes, their layers, ownership, and important dependencies here.
 
-### Layers & Namespaces (current direction)
+### Layers & Namespaces
 
-| Layer          | Namespace                              | Folder                        | Role |
+| Layer | Namespace | Folder | Role |
 |----------------|----------------------------------------|-------------------------------|------|
-| Composition    | `Flame_n_Blame_Challenge`              | `Assets/_Core/Scripts/`       | `Bootstrapper`, `GameUpdater` — build the graph, own the tick |
-| Use Cases      | `Flame_n_Blame_Challenge.UseCases`     | `Scripts/UseCases/`           | Session / run orchestration (`GamePlaySession`) |
-| Domain         | `Flame_n_Blame_Challenge.Domain`       | `Scripts/Domain/`             | Pure game state & rules |
-| Adapters       | `Flame_n_Blame_Challenge.Adapters`     | `Scripts/InterfaceAdapters/`  | Ports (`IPlayerInput`, `IUpdatable`…) + Unity implementations |
+| Composition | `Flame_n_Blame_Challenge` | `Assets/_Core/Scripts/` | `Bootstrapper`, `GameUpdater` — build the graph, own the tick |
+| Use Cases | `Flame_n_Blame_Challenge.UseCases` | `Scripts/UseCases/` | session orchestration (`GamePlaySession`) |
+| Domain | `Flame_n_Blame_Challenge.Domain` | `Scripts/Domain/` | pure game state & rules |
+| Adapters | `Flame_n_Blame_Challenge.Adapters` | `Scripts/InterfaceAdapters/` | ports (`IUpdatable`, `IPlayerInput`, `IGameSettings`) + Unity implementations |
 
-**Dependency direction:**  
-Composition → UseCases → Domain  
-All of them may depend on Adapter **ports** (interfaces). Only Composition instantiates concrete Adapter implementations.
+**Dependency direction:** Composition → UseCases → Domain; all three may depend on Adapter **ports**,
+and only Composition instantiates concrete Adapter implementations. `Scripts/UseCases/` is the chosen
+folder (D-012, D-014); `Scripts/Application/` is deleted — one folder for one layer.
+The current file-by-file map is `docs/DECISIONS.md` §Current structure.
 
-`Scripts/UseCases/` is the chosen folder (D-012, D-014); `Scripts/Application/` is **deleted** — the
-READ-ONLY table's "Application" layer is what `UseCases` *is*, so one folder, not two.
-
-### The Player, as built (D-016, D-017)
+### The Player, as built
 
 | Type | Layer | What it owns |
 |------|-------|--------------|
-| `Player` | Domain | **Composition and forwarding only** — the three parts, `Velocity` for the shell, `ReceivePush` and `ReportContact` forwards. No rules in it: the jump gate moved to `PlayerMotion` (D-021), so no `_input`/`_settings` field is needed at all |
-| `PlayerMotion` | Domain | **Velocity.** Three summed channels — `ControlVelocity` (input, never touched by a push), `PushVelocity` (push momentum), `VerticalVelocity` (gravity + vertical launch) — plus the active push list (capacity 8). The rule order: contact → jump → gravity → pushes → input control → drag → cap → sum. It also owns the jump gate (D-021) and **two authored decay rates** — `GroundDrag` while grounded, `AirDrag` while airborne (D-020) |
-| `PlayerMovement` | Domain | Input + look → `DesiredVelocity`; air control is the reduced `PlayerSpeedInAir`; exposes the jump *request* (`IsJumpRequested`) and nothing else about the jump (D-021) |
-| `PlayerLookRotator` | Domain | Yaw/pitch from the look delta; exposes `Forward`/`Right` |
-| `PushPresetData` + `PushType`/`PushKind`/`PushApplication`/`Vector3CurveData` | Domain | Authored push data as a plain DTO: `Type` (replace-per-type key), `Kind` (Impulse N·s / Sustained N), `Applies` (Always / GroundedOnly), `Force`, `Curve` (flat = constant, decay = one puff), `Duration` (ends the **adding**, never the velocity) |
-| `PlayerMotor` | Adapters (shell) | `Move(Velocity * dt)`, write yaw/pitch onto the transforms, report `CollisionFlags.Sides` + `isGrounded` into the domain, and forward `ApplyForce` to `Player.ReceivePush`. **No rules in it** — no force list, no curve evaluation, no gravity, no velocity |
-| `HydrantPush` | Adapters (shell) | Trigger → `playerMotor.ApplyForce(preset, _pushDirection.rotation)`. Direction comes from the **source's** rotation, never the player's facing |
+| `Player` | Domain | composition + forwarding only: the three parts, `Velocity` for the shell, `ReceivePush`, `ReportContact`. **No rules, no `_input`/`_settings`** (D-021) |
+| `PlayerMotion` | Domain | **velocity**: `ControlVelocity` (input, never touched by a push), `PushVelocity` (momentum), `VerticalVelocity` (gravity + vertical launch), the active push list (capacity 8), the jump gate (D-021), `GroundDrag`/`AirDrag` (D-020). Step order: contact → jump → gravity → pushes → control → drag → cap → sum |
+| `PlayerMovement` | Domain | input + look → `DesiredVelocity`; reduced `PlayerSpeedInAir`; exposes the jump **request** only (D-021) |
+| `PlayerLookRotator` | Domain | yaw/pitch from the look delta → `Forward`/`Right` |
+| `PushPresetData` + `PushType`/`PushKind`/`PushApplication`/`Vector3CurveData` | Domain | authored push DTO: `Type` (replace-per-type key), `Kind` (Impulse N·s / Sustained N), `Applies`, `Force`, `Curve`, `Duration` (ends the **adding**, never the velocity). `Applies` is an open question (TODO) |
+| `PlayerMotor` | Adapters (shell) | `Move(Velocity * dt)`, yaw/pitch onto transforms, report `CollisionFlags.Sides` + `isGrounded`, forward `ApplyForce` → `Player.ReceivePush`. **No rules** |
+| `HydrantPush` | Adapters (shell) | trigger → `ApplyForce(preset, nozzle rotation)` — direction from the **source**, never the player's facing |
 
-**The push rule (D-016, D-020):** a force's `Duration` ends the *adding*; **contact** is what absorbs
-momentum — grounded zeroes vertical and push-Y, `CollisionFlags.Sides` zeroes the pushed X/Z and leaves
-`ControlVelocity` so the player can still walk. Momentum then decays at **authored `GroundDrag` while
-grounded** (in the ground plane only — never on the vertical, so a jump fired on that tick survives)
-**and authored `AirDrag` while airborne**; one rate for both is what makes the floor read as ice
-(G-012), and it saturates at authored `MaxPushSpeed`. External pushes enter through
-`Player.ReceivePush(preset, sourceOrientation)`; the player's own push (the jump) is fired inside
-`PlayerMotion`'s step (D-021). Every future shove (spray, debris, hydrant burst) uses the same one
-method: *the source calls the shell, the shell forwards, the domain decides what velocity does.* A
-shell that evaluates curves, sums forces, or zeroes velocity when a timer expires has business rules
-in it (G-012). A source's **conditions to fire** (is the aim on target, is the button held, did I just
-land) are never in `PlayerMotion` — the source decides whether to fire; the domain decides what a fired
-push does. Whether `PushPresetData.Applies` should exist at all is an open question, not a decision
-(TODO): the only preset that used `GroundedOnly` was the jump, and D-021's gate makes it redundant.
+**The push rule, structurally** (the *why* is D-016, D-020, D-021; the trap is G-012): a push enters
+only through `Player.ReceivePush(preset, sourceOrientation)`; `Duration` ends the adding, **contact**
+absorbs momentum, decay is authored per contact state, the channel saturates at `MaxPushSpeed`. A shell
+that evaluates curves, sums forces, or zeroes velocity on a timer has business rules in it. A source
+decides **whether** to fire; `PlayerMotion` decides what a fired push does.
 
 ### Who owns the tick
 
-- Exactly one Unity `Update()` exists — on `Bootstrapper`.
-- It calls `GameUpdater.Update(time, deltaTime)`.
-- `GameUpdater` calls `Update` on every registered `IUpdatable` **in registration order**.
-- Registration order **is** the execution order contract. Do not rely on Script Execution Order.
-- Safe removal during iteration is supported (staged queue + swap-remove).
-- **No fixed step for now** (D-018, supersedes the `IFixedUpdatable` clause of D-013): integration is
-  dt-driven on the single `GameUpdater` tick, and frame-rate independence is asserted by tests at
-  `dt = 1/60`, `1/30`, `1/120` (within 5%). Re-opens only as a new decision for a system that needs
-  deterministic stepping.
+- Exactly one Unity `Update()` — on `Bootstrapper` → `GameUpdater.Update(time, deltaTime)` → every
+  registered `IUpdatable` **in registration order**, which **is** the execution-order contract (never
+  Script Execution Order). Safe removal during iteration (staged queue + swap-remove).
 - Registration order today, in `GamePlaySession.StartGamePlay()`: `PlayerInputMain` → `Player` →
-  `PlayerMotor`. The shell runs **after** the domain so it consumes the velocity the domain decided this
-  tick. `PlayerMotor`'s own Unity `Update()` was deleted to keep the first bullet true (D-016).
+  `PlayerMotor` — the shell runs **after** the domain, so it consumes what the domain decided this tick.
+- **No fixed step** (D-018): integration is dt-driven; frame-rate independence is asserted by tests at
+  1/60, 1/30, 1/120 (within 5%). Re-opens only as a new decision.
 
 ### Unity boundary
 
-- **Default:** plain C# classes.
-- **MonoBehaviours are allowed only when Unity requires them** (physics/trigger callbacks, Animator, authored prefab references, etc.).
-- These MonoBehaviours must stay **thin shells**: they forward events/data into plain classes. No game rules inside shells.
-- Authored numbers live on shells or ScriptableObjects, then are copied into **plain data objects** that are passed to constructors. Domain never reads from the Inspector or does `GetComponent` in hot paths.
+- **Default:** plain C# classes. MonoBehaviours only when Unity requires them (physics/trigger
+  callbacks, `Animator`, authored prefab references) and only as **thin shells** that forward
+  events/data into plain classes.
+- Authored numbers live on shells/ScriptableObjects and are copied into plain data objects passed to
+  constructors. Domain never reads the Inspector and never does `GetComponent` in a hot path.
 
 ### Current reality vs decided
 
-| Status              | Items |
-|---------------------|-------|
-| **Exists today**    | `Bootstrapper` (composition root, one type per file), `GameUpdater`, `IUpdatable`, `IPlayerInput`, `PlayerInputMain`, `GamePlaySession` in `Scripts/UseCases/`, `Scripts/Domain/{Player, PlayerMovement, PlayerLookRotator, PlayerMotion, ActivePush, PushPresetData, PushType, PushKind, PushApplication, Vector3CurveData}`, `IGameSettings` (port, in `Scripts/InterfaceAdapters/`) + `GameSettings` (authored `Mass`, `Gravity`, `GroundedGravity`, `TerminalVelocity`, accelerations, `GroundFriction`, **`GroundDrag`**, `AirDrag`, `MaxPushSpeed`, the jump preset), `PlayerMotor` gutted to a thin shell, `HydrantPush` as a shell, `FlameNBlame.Tests` asmdef + the push-model tests (**T1–T13**, plus the jump suite with its auto-rebound pin), first perf budget written (D-016) |
-| **Written, not verified** | **The whole push model.** The headless compile gate and the PlayMode test run have **not** been executed (the Bash safety classifier refused destructive commands on 2026-11-19 — read-only shell worked, so the refusal is classification, not absence), so the tree's compile status is unconfirmed — B-002 is `Fixed` on paper only, not `Verified`. No web build was made (D-019); no editor feel check was run. Treat this row as the top priority on `TODO.md`. |
-| **Decided, not built yet** | Push-source registry routing (deferred by D-016), spray shove with the 0.1 s flat-curve refresh (phase 2 — the shape a `UseCases` source class would host, D-021's reasoning), hydrant burst tuning, control-loss lockout (**cut** by D-016 — re-deciding needs a new entry), fire/burnable systems, WebGL budgets for fire/particles/physics, anisotropic ground friction (needs a contact normal, so it changes what the shell reports — D-020), `Bootstrapper` attached in the scene |
-| **Still scaffolding** | `Bootstrapper`'s GUID is absent from `FnB_Gameplay.unity`, so **no tick runs at all**; `Player.prefab` carries a non-kinematic Rigidbody beside the `CharacterController`; the scene is not in Build Settings (G-003) |
+| Status | Items |
+|-----------------|-------|
+| **Exists + verified** | The tree compiles (B-002 `Verified` 2026-11-20, CLI gate). The test suite runs as **EditMode** on code (`unity cmd test run --mode editor`): 19 tests, 18 pass, 1 fails (**B-003**, the spray does not saturate). `Bootstrapper` is in `FnB_Gameplay.unity` on `=== System`, so the tick runs. |
+| **Exists, not verified** | The push model's *behaviour in the scene*: no `Player` GameObject, so `PlayerMotor` is attached to nothing (B-004). No editor feel check (TODO), no web build (D-019). |
+| **Decided, not built** | Push-source registry routing (D-016), spray shove with the 0.1 s flat-curve refresh (phase 2), hydrant burst tuning, control-loss lockout (cut by D-016), fire/burnable systems, WebGL budgets for fire/particles/physics, anisotropic ground friction (needs a contact normal, D-020). |
+| **Still scaffolding** | `Player.prefab` carries a non-kinematic Rigidbody beside the `CharacterController`; `EditorBuildSettings` lists the deleted `SampleScene.unity` (G-003); WebGL has no pipeline (B-001). |
 
 ### Adding a new system — checklist
 
-1. Put state & rules in **Domain**.
-2. If it needs engine services (input, physics queries, audio…), declare a **port** and implement it in Adapters.
-3. Register it for the tick at composition time, in the required order (there is no fixed tick, D-018).
+1. State & rules in **Domain**.
+2. Engine services (input, physics queries, audio…) → declare a **port**, implement it in Adapters.
+3. Register for the tick at composition time, in the required order (there is no fixed tick, D-018).
 4. Author tunable numbers on a shell/ScriptableObject → pass as plain data.
-5. Keep MonoBehaviours thin; put no rules in them.
+5. Keep MonoBehaviours thin; no rules in them.
+6. Write the perf budget **before** code (D-007), then the test, then the code.
 
 ### Notes
 
-- Prefer updating this section when the shape changes.
-- Never edit the READ-ONLY RULES above.
+- Update this section when the shape changes; never edit the READ-ONLY RULES above.
+- This file states **how to build**. Rationale and history live in DECISIONS.md; state of the files in
+  DECISIONS.md §Current structure; work in TODO.md; traps in GOTCHAS.md (D-024).
+

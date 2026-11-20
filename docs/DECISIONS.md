@@ -24,7 +24,49 @@ later or "quickly improve" something and spend hours fixing what we broke.
 
 ---
 
-## D-001: Unity 6000.6.5f1 with URP
+## Current structure (map, updated whenever reality moves)
+
+Verified 2026-11-20 against the files and the live editor, not against old notes.
+
+**Assemblies:** `Assets/_Core/FlameNBlame.asmdef` (its `name` field is the typo `FlameNBlame-asmdf`,
+TODO; `rootNamespace: Flame_n_Blame_Challenge`; GUID references; includes the `CartoonFX` vendor-demo
+reference, G-001) and `Assets/_Core/Tests/FlameNBlame.Tests.asmdef` — **editor-only**
+(`includePlatforms: ["Editor"]`), so the 19 `[Test]` tests run as **EditMode**, on code with stub ports,
+no scene load (D-026).
+
+**Folders ↔ namespaces ↔ layers:**
+
+| Folder (`Assets/_Core/Scripts/`) | Namespace | Layer | Contents |
+|---|---|---|---|
+| `` (root) | `Flame_n_Blame_Challenge` | Composition | `Bootstrapper.cs`, `GameUpdater.cs` |
+| `UseCases/` | `.UseCases` | Application | `GamePlaySession.cs` |
+| `Domain/` | `.Domain` | Domain | `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushPresetData`, `PushType`, `PushKind`, `PushApplication`, `Vector3CurveData` |
+| `InterfaceAdapters/` | `.Adapters` | Adapters | ports `IUpdatable`, `IPlayerInput`, `IGameSettings`; `PlayerInputMain`, `GameSettings` + `Game Settings.asset`, `PlayerMotor`, `HydrantPush` |
+
+`Scripts/Unity/` and `Scripts/Application/` were deleted (2026-11-19, D-012). `HydrantPush` moved with
+its `.meta` (GUID `75c4001556e8f7e47aca53aa50ef5170`) — that GUID is what the scene binds to.
+
+**Who talks to what:** `Bootstrapper` (one `Update()`) → `GameUpdater` → registered `IUpdatable` in
+registration order `PlayerInputMain` → `Player` → `PlayerMotor`. `Player` composes
+`PlayerMotion(PlayerMovement, IGameSettings)`, exposes `Velocity`, forwards `ReceivePush` and
+`ReportContact`. Shells: `PlayerMotor` (`Move(Velocity*dt)`, reports `CollisionFlags.Sides` +
+`isGrounded`), `HydrantPush` (trigger → `ApplyForce(preset, nozzle rotation)`). A source decides
+**whether** to fire; `PlayerMotion` decides what a fired push does (D-016, D-021).
+
+**Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` (GUID
+`40c42f9779f68674690ed56e87150acf`) + Main Camera (Camera + CinemachineBrain); `=== World` →
+FX/Directional Light + `GrayBox Level` (Ground 10×10 plane, `Hydrant` with `CapsuleCollider` +
+`HydrantPush` + `PushDirection`, `Burnable Box` at world (4.56, 0.34, 6.18), `Slope`, `Reference Cube`,
+`Player Spawn Point` at (2.84, 0, 7.78)). **There is no `Player` GameObject, so `PlayerMotor` is
+attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings (G-003).**
+`EditorBuildSettings.asset` still lists the deleted `SampleScene.unity`. The `House Blockade` test wall
+(CLI scene-driving proof, D-023) was deleted on 2026-11-20 by the user's call.
+
+**Strays:** `Player.cs` at repo root is an untracked copy of `_Core/Scripts/Domain/Player.cs`;
+`X Bot@Falling.fbx` sits in the code folder. Both are housekeeping (TODO).
+
+---
+
 - **Date:** 2026-11-15
 - **Status:** Accepted (made at project creation)
 - **Context:** New 3D game project; needed a modern, supported pipeline with VFX Graph, Shader Graph and scalable quality (PC + mobile profiles exist in `Assets/Settings/`).
@@ -197,3 +239,146 @@ later or "quickly improve" something and spend hours fixing what we broke.
 - **Decision:** The jump **rule** (may a request become a launch this tick, one per contact, re-armed on the next) lives in `PlayerMotion`, next to the only two facts it needs — contact and the push channel — and it fires the authored `_settings.JumpPreset` through the same `ApplyPush` path. The jump **request** is exposed by `PlayerMovement` (`IsJumpRequested`, reading `IPlayerInput.IsJumping`) — request in, rule out. `Player` keeps exactly three things: the composition, `Velocity` for the shell, and the two forwards (`ReceivePush`, `ReportContact`). `TryJump()` and the flag are deleted from it.
 - **Why:** One owner per rule; a rule split across two classes with a one-tick handshake between them is a bug magnet, and the cycle rules the naive reading out. `PlayerMotion` is a domain class that already reads `PlayerMovement`, so the gate costs no new dependency, no new field on `Player`, and no setter-injected wiring (which the layering forbids: wiring once in a constructor is the rule). A per-feature `UseCases` class was considered for this and for the other push sources and is not taken now: a jump use case would own a three-condition gate, which is smaller than the class that hosts it; the same shape is a clear win for the extinguisher spray, where the start condition is a raycast, the direction is the aim, and the interval is a re-call — that gets its own entry when the spray exists.
 - **Consequences:** `Player.UpdateLogic` is three calls; the jump fires inside `PlayerMotion`'s step, after `ApplyContact()` and before gravity, so a launch on the tick it lands survives the ground it left (the ordering contract D-013 already states). The gate now uses `PlayerMotion`'s own `IsGrounded` (the report Unity gave) instead of `PlayerMovement`'s copy, which are fed by the same call — so there is one fewer place for grounded to disagree. `Player` no longer needs the `IPlayerInput`/`IGameSettings` references at all, only the parameters. `PlayerJumpTests` drive `_input.IsJumping` and are unaffected: they assert behaviour through `Player`, never the gate. The jump preset's `Applies: GroundedOnly` is now redundant with this gate — that axis is a separate open question (TODO), and if it is deleted this entry's decision does not change.
+
+## D-022: Unity CLI is the editor-automation interface; the MCP bridge stays unwired
+- **Date:** 2026-11-20
+- **Status:** Accepted
+- **Context:** Verified the toolchain end to end. `unity.exe` (Unity CLI, v1.0.1) is installed at
+  `%LOCALAPPDATA%\Unity\bin`; `com.unity.pipeline` 1.0.0 is already in `Packages/manifest.json`, and
+  `unity status` reports our running editor on port 7800 with `state: ready` — so a live editor
+  answers 196 Pipeline commands (`script recompile`, `test run`, `console get`, `scene get_hierarchy`,
+  `gameobject find`, `build run`, `diagnostics profiler_record`, `runtime simulate_key`). Unity's own
+  docs (`Documentation~/snippets/mcp-deprecation-notice.md` in AI Assistant 2.21.0-pre.2) say the MCP
+  server is deprecated and the CLI replaces it. The bridge does work — 54 tools + 1 prompt over the
+  named pipe `\\.\pipe\unity-mcp-<hash>-<pid>`, relay `~/.unity/relay/relay_win.exe` — but see G-013
+  for how fragile it is to drive by hand, and every MCP tool is covered by `unity cmd`.
+- **Decision:** The Unity CLI is **the** way an agent drives this editor: `unity status` first, then
+  `unity cmd`, `unity test`, `unity build`, `unity run`, `unity recompile`. The MCP bridge is **not**
+  registered in any client's MCP config. Skills come from the CLI binary: 37 Unity skills installed
+  project-local (`.opencode/skills/`, `unity skill install opencode --local`) and user-global for
+  Claude Code (`~/.claude/skills/`). The G-004 `.claude/skills` junction to `Assets/Feel/Skills` is
+  **not** created — Feel's `SKILL.md` files are read directly, on demand.
+- **Why:** Registering 54 MCP tools on a deprecated path spends context to duplicate what `unity cmd`
+  already does, and a stdio MCP proxy that shuts down at stdin EOF (G-013) is a bad dependency to
+  build on. The CLI talks to the *warm* editor, so the compile gate stops paying batch-mode cold-start
+  cost, and it reaches the Player runtime too (`--runtime`), which a batch run never does. Installing
+  skills project-local keeps them pinned to this repo's Unity version and lets `unity skill sync`
+  re-render them against the CLI binary; the Claude Code copy is user-global so it covers every project
+  on this machine. OpenCode discovers both sources; Claude Code needed a global install to see them.
+- **Consequences:** `CLAUDE.md` §"Unity toolchain" is the pointer agents read; the compile gate for
+  B-002 is `unity cmd script recompile`, not the batch-mode invocation. After any `unity self-update`,
+  `unity skill sync` re-renders the installed skills — a stale skill copy is a known failure mode.
+  Nothing may add Unity MCP to `mcp.servers` without a new decision. Whether `.opencode/skills/` is
+  committed or gitignored is **open** (TODO). The Feel-skills path is unchanged in substance: agents
+  read `Assets/Feel/Skills/<id>/SKILL.md` before Feel work (G-004 stays Open with a revised rule).
+
+## D-023: CLI-only toolchain, exactly 2 Unity skills, agent speaks Russian
+- **Date:** 2026-11-20
+- **Status:** Accepted (supersedes the skills-install clause of D-022; D-022's MCP-unwired clause stands)
+- **Context:** 37 Unity skills were installed project-local + user-global earlier the same day, and the
+  user's review was that the list is too complex. Skills are manuals for the agent, not runtime
+  capability: the CLI's 196 commands do the work, and the MCP bridge (54 tools) is deprecated by Unity.
+  The CLI was proven able to drive the scene end to end with no MCP: `gameobject create` →
+  `set_transform` → `component add` → `component get_properties` → `capture scene_view/game_view`,
+  with the change written into `FnB_Gameplay.unity` (the `House Blockade` test wall).
+- **Decision:** The Unity CLI is the toolchain and the MCP bridge stays unwired (D-022). **Exactly two
+  skill manuals** remain: `unity-cli` and `unity-pipeline`, project-local `.opencode/skills/` plus the
+  Claude Code global copy; the other 35 were deleted from both locations. There is no
+  `unity skill uninstall`, so deleting folders is the undo — and `unity skill sync` / `unity skill
+  refresh` are banned, because they re-render and re-create the whole 36-skill tree (G-015).
+  **The agent answers in Russian**, short and plain, 5–10 lines, no wide tables, no option menus
+  (CLAUDE.md §Rules).
+- **Why:** Adverting 36 manuals spends context in every session, and 35 of them describe systems
+  outside the four locked pillars (D-008). The 2 that stay are the ones needed to drive the CLI
+  correctly. Deleting folders, not disabling, keeps the repo clean and makes the state visible on disk.
+- **Consequences:** Getting a niche skill back for one task =
+  `unity skill install opencode --local --skill <name>`, then delete it again. The CLI's tracking list
+  (`unity skills`) stays **stale** after manual deletes — trust the folders on disk, not the list.
+  Whether the 2 remaining skill dirs (754 KB, generated by the CLI binary) are committed or gitignored
+  is **open** (TODO). After `unity self-update`, do **not** run `sync`: skills stay as they are.
+
+## D-026: Tests — on code, on Domain/UseCases/invariants, after the user approves the mechanic
+- **Date:** 2026-11-20
+- **Status:** Accepted (changes the test process in CLAUDE.md §Rules and STYLE.md §Tests; D-016's test
+  list stays, its tests are on borrowed time until the feel pass)
+- **Context:** The 19 tests are `[Test]` plain NUnit on plain C# classes with stub ports, but the test
+  asmdef is platform-agnostic, so Unity runs them as **PlayMode** — paying a scene load and driving
+  Play Mode for code that touches no Unity, in a scene that has no `Player` (B-004), so the run proves
+  nothing about gameplay. The user's review: writing tests before a mechanic is approved means writing
+  them 5 times, because the mechanic gets edited and bugs get fixed; a test on an adapter asserts
+  Unity, not our rules; and re-running a passing test 5 times buys no information.
+- **Decision:**
+  1. **Layers tested:** Domain, UseCases, and **invariants** (always-true properties of domain state).
+     **Never Adapters** — shells have no rules.
+  2. **When:** tests are written **after** the user has played the mechanic and approved it.
+  3. **Where:** the suite runs **on code** through `unity cmd test run --mode editor`;
+     `FlameNBlame.Tests.asmdef` becomes editor-only (`includePlatforms: ["Editor"]`), which is what
+     makes it EditMode. Play Mode is for feel checks with `capture game_view`, not for the suite.
+  4. **The 5-run rule is removed:** a test runs once, under 90 s; the gate is re-run whenever the code
+     changes.
+- **Why:** Feel is judged by the user's eyes, so a test cannot say a launch feels right — asserting an
+  unapproved mechanic is writing a specification the user is about to change. Adapters are thin
+  forwarders, so a test there costs the same as a test of `CharacterController`. EditMode removes the
+  scene from the measurement: the same 19 assertions, no scene load, no Play Mode. One run is enough
+  because NUnit is deterministic and the gate is not a one-off — every edit re-runs it.
+- **Consequences:** The CLI gate for tests is `unity cmd test run --mode editor` (synchronous, no
+  `--async-tests`, results in the run output). The existing suite needs no code change, only the asmdef
+  platform. The push-model tests are written for a mechanic that is **not** user-approved yet (the 5
+  editor feel checks are open), so expect them to be edited during the feel pass; the permanent
+  assertions are frame-rate independence (T8) and the no-per-tick-allocation budget (T12).
+
+## D-025: Zero Unity skills — the CLI documents itself
+- **Date:** 2026-11-20
+- **Status:** Accepted (supersedes the "exactly 2 skills" clause of D-023; D-023's MCP-unwired clause,
+  the CLI-first clause and the Russian-language clause stand)
+- **Context:** After the D-023 prune, 2 manuals stayed: `unity-cli` + `unity-pipeline`, 754 KB,
+  untracked, in `.opencode/skills/` and in the user's global `~/.claude/skills/`. Reviewing what the
+  agent actually needs: `unity cmd` prints every command **with its description**, `unity cmd --query
+  <term>` searches the list, `unity cmd <group> <verb> --help` prints the accepted parameters, and the
+  non-obvious facts (JSON-array vectors, `--hierarchy-path`, the compile/test gates, `confirm=true` for
+  destructive commands) are recorded in CLAUDE.md §Commands and G-014/G-015.
+- **Decision:** **No Unity skills in the repo and none in the global skills folder**: `unity-cli` and
+  `unity-pipeline` deleted from both. `gepeto` + `pinokio` (the user's non-Unity global skills) stay.
+  **Feel's 8 skill folders stay in `Assets/Feel/Skills/` where they were** — vendor folder, unadvertised,
+  read directly (G-004).
+- **Why:** A manual that duplicates the CLI's own help output spends context in every session and goes
+  stale against the CLI binary; a folder of generated markdown in the repo has to be committed,
+  gitignored, or deleted, and it is regenerated by commands we are not allowed to run. Self-documenting
+  tools beat manuals.
+- **Consequences:** An agent driving Unity reads CLAUDE.md §Commands and asks the CLI (`--query`,
+  `--help`). `unity skill install` is now a **per-task exception**, never a habit: install one niche
+  skill, use it, delete its folder. Nothing in the repo is generated by the Unity CLI, so `.opencode/`
+  is empty and the git-tracking question is closed. The tracking store (`unity skills`) lists 36 entries
+  that do not exist on disk — trust the folders.
+
+## D-024: Docs re-scoped — one job per file, BUGS.md merged into TODO.md
+- **Date:** 2026-11-20
+- **Status:** Accepted (supersedes the routing rules of D-011 and D-015; the entries they recorded stand)
+- **Context:** The doc set had drifted from what it is for. `CLAUDE.md` (306 lines) carried scene
+  archaeology, MCP pipe internals and a tool inventory — state, not behaviour; `TODO.md` (241 lines)
+  had duplicate lines, stale "not run yet" items and paragraph-long narratives; `ARCHITECTURE.md`'s
+  mutable section retold the rationale of D-016/D-020, which DECISIONS already owns; `BUGS.md` did the
+  same job as TODO. The user asked for exactly one responsibility per file, and said he does not want
+  to keep track of the docs himself.
+- **Decision:** The split, one line each:
+  - `CLAUDE.md` — agent behaviour only: rules, commands, toolchain, vendor boundaries, doc routing.
+    Thin (~110 lines). No state, no environment inventory.
+  - `TODO.md` — the work list, **including bugs** (the `B-` ids stay, as `- [ ] B-001` lines with
+    repro + status). Done / Now / Phases / Housekeeping / Done sections.
+  - `ARCHITECTURE.md` — how to build: the READ-ONLY rules, the layer map, who owns the tick, the
+    checklist for a new system. No rationale, no history.
+  - `DECISIONS.md` — **§Current structure** (folders, namespaces, assemblies, who talks to what, scene
+    contents) kept current, plus the append-only decision log with the *why*.
+  - `GOTCHAS.md` — traps we fell into, each ≤ 5 lines: Status / What / Rule.
+  - `STYLE.md` — conventions. `docs/README.md` — the index.
+  **BUGS.md is deleted**; its three rows move into TODO.md's bug section. Editing existing
+  DECISIONS/GOTCHAS entries is allowed **only** to compress verbosity, never to change an ID, a status
+  or a Rule; new content is always a new entry.
+- **Why:** A doc that mixes state with behaviour is read every session (CLAUDE.md) and spends context
+  on facts that change daily; a doc that retells decisions makes two files argue. The user's stated
+  need is to not have to know what is in each file — so each file answers exactly one question, and
+  the answer to "what's the state" is in one place (DECISIONS §Current structure) rather than three.
+- **Consequences:** `CLAUDE.md`'s "Current state of the code" section is gone: state moves to
+  DECISIONS. Bugs are tracked by the same checklist mechanism as tasks, so a bug is done when its test
+  passes, not when it is written. `README.md`, `STYLE.md §Docs` and `CLAUDE.md §Docs` routing lines are
+  rewritten to match. `docs/` stays untracked (TODO) — the doc cleanup is one commit.

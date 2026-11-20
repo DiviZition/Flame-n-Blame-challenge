@@ -1,158 +1,135 @@
-# GOTCHAS.md — Mistakes, Restrictions & Rules
+# GOTCHAS.md — Traps We Fell Into
 
-Things that bit us or will bite us. When we struggle with something, waste time on it, or
-discover a hard restriction — it goes here so the next person (human or AI) doesn't repeat it.
+Things that bit us, with the **Rule** that avoids them. One line of Rule is what people actually read.
 
-**Rules:**
-- Append an entry the moment the lesson is learned, not "later".
-- Each entry states the **Rule** in one line — that's what people actually read.
-- Mark `Resolved` or `Avoided` when no longer relevant, but keep the entry (it's history).
+**Rules:** append the moment the lesson is learned; each entry ≤ 5 lines (Status / What / Rule); mark
+`Resolved`/`Avoided` when it no longer bites, keep the entry as history. Compressing verbosity is fine;
+changing an ID, a status or a Rule is not (D-024).
 
-**Entry format:**
-```
-## G-XXX: <Short title>
-- **Status:** Open | Resolved | Avoided
-- **What happened / will happen:** ...
-- **Rule:** ...
-```
+**Format:** `## G-XXX: title` + `- **Status:** Open | Resolved | Avoided` + `- **What:**` + `- **Rule:**`
 
 ---
 
-## G-001: Game asmdef references an editor-only assembly
-- **Status:** Resolved (2026-11-19) for the editor-only reference and the `name` typo; the vendor-demo
-  reference hazard stays Open
-- **What happened / will happen:** `Assets/_Core/FlameNBlame.asmdef` line 9 references
-  `GUID:b93f844d45cfcc44fa2b0eed5c9ec6bb` = `com.unity.ide.visualstudio` **editor** assembly.
-  With no scripts in `_Core` it compiles fine, but the first script added there will make
-  Unity refuse to compile the runtime assembly for player builds.
-- **Rule:** Remove that reference before/when adding the first script under `_Core`; editor-only
-  code goes in its own asmdef under `_Core/Editor` with `includePlatforms: ["Editor"]`.
-- **Resolution (2026-11-19):** the editor-only reference is gone and the `name` field is the correct
-  `FlameNBlame` (GUID references make renaming safe). The **standing** half of this entry: the
-  reference list includes `CartoonFX`, a vendor **demo** assembly, so an asset-store update can delete
-  it and break our compile. Verify the reference list against the code, not the docs, and drop it.
+## G-001: A runtime asmdef referencing an editor-only assembly
+- **Status:** Resolved 2026-11-19 (editor-only reference + `name` typo); the vendor-reference half stays Open
+- **What:** `FlameNBlame.asmdef` referenced `com.unity.ide.visualstudio` (editor-only), which makes
+  Unity refuse to compile the runtime assembly for player builds as soon as the first script appears.
+  It also references `CartoonFX` — a vendor **demo** assembly.
+- **Rule:** Editor-only code goes in `_Core/Editor` with `includePlatforms: ["Editor"]` in its own
+  asmdef. Check the reference list against the **code**, not the docs: an asset-store update can delete
+  a demo assembly and break our compile.
 
-## G-002: Invalid rootNamespace in FlameNBlame.asmdef
-- **Status:** Resolved (2026-11-17)
-- **What happened / will happen:** `"rootNamespace": "Flame-n-Blame-Challenge"` — hyphens are not
-  valid in C# identifiers. Scripts created via the editor (which auto-insert the root namespace)
-  will generate non-compiling code.
-- **Rule:** Change `rootNamespace` to a valid identifier (e.g. `FlameNBlame`) before creating
-  scripts through the editor. Manually written files must declare `namespace FlameNBlame…`
-  themselves — see STYLE.md.
-- **Resolution:** `rootNamespace` is now `Flame_n_Blame_Challenge`, and that root — not
-  `FlameNBlame` — is the project's namespace root by decision (D-014); STYLE.md §Namespaces and this
-  entry's example are updated to match. The lesson stands: an invalid `rootNamespace` produces
-  silently non-compiling editor-generated files, so check it before creating the first script in an
-  assembly, and let the asmdef carry the convention rather than typing namespaces by hand.
+## G-002: `rootNamespace` with hyphens
+- **Status:** Resolved 2026-11-17
+- **What:** `"rootNamespace": "Flame-n-Blame-Challenge"` is not a valid C# identifier, so every
+  editor-generated file silently fails to compile.
+- **Rule:** Check `rootNamespace` before creating the first script in an assembly, and let the asmdef
+  carry the convention instead of typing namespaces by hand. The root is `Flame_n_Blame_Challenge` (D-014).
 
-## G-003: Build settings point at a scene that doesn't exist
+## G-003: Build Settings point at a scene that doesn't exist
 - **Status:** Open
-- **What happened / will happen:** `EditorBuildSettings.asset` lists `Assets/Scenes/SampleScene.unity`
-  (deleted). Building or some editor tooling may fail or silently build an empty scene list.
-- **Rule:** After creating the first real scene, re-add it in Build Settings (File → Build Profiles).
-  Note that this bites *harder* on WebGL: a build with an empty scene list produces a page that
-  loads and shows nothing (D-007).
+- **What:** `EditorBuildSettings.asset` lists the deleted `Assets/Scenes/SampleScene.unity`.
+- **Rule:** Add the real scene to Build Settings. On WebGL it bites harder: an empty scene list builds a
+  page that loads and shows nothing (D-007).
 
-## G-004: Feel AI skills are not visible to Claude Code by default
-- **Status:** Open
-- **What happened / will happen:** The Feel skills in `Assets/Feel/Skills/` are only loaded if
-  exposed via `.claude/skills/`. Without the junction, agents will guess Feel's component names
-  and API instead of reading the skills.
-- **Rule:** Create the junction once (from project root, PowerShell):
-  `New-Item -ItemType Junction -Path .claude\skills -Target Assets\Feel\Skills`
-  then start a fresh session. Before any Feel work, agents must read the matching SKILL.md.
+## G-004: Feel's skills are not advertised to the agent
+- **Status:** Open (the junction was dropped 2026-11-20, D-022)
+- **What:** `Assets/Feel/Skills/` is not exposed as skills, so an agent guesses Feel's component names
+  and API.
+- **Rule:** Do **not** create the `.claude/skills` junction. Read the matching
+  `Assets/Feel/Skills/<id>/SKILL.md` **before** any Feel work.
 
 ## G-005: Non-standard Unity install location
 - **Status:** Avoided
-- **What happened / will happen:** Unity Hub's secondary install path is `X:\Programs\Unity\Editors`
-  (not `C:\Program Files\Unity\Hub\Editor`), so the editor binary is at
-  `X:/Programs/Unity/Editors/6000.6.5f1/Editor/Unity.exe`.
-- **Rule:** Use that full path for any CLI invocation (batchmode, tests); don't assume C:\.
+- **What:** The editor lives at `X:/Programs/Unity/Editors/6000.6.5f1/Editor/Unity.exe`, not under `C:\`.
+- **Rule:** Use the full path for any batch-mode invocation. The Unity CLI is always
+  `C:\Users\DiviZition Limited\AppData\Local\Unity\bin\unity.exe` — a different binary.
 
 ## G-006: Store-asset folders get overwritten by updates
 - **Status:** Avoided
-- **What happened / will happen:** `Assets/Feel`, `Assets/Plugins/*`, `Assets/Pivot++`,
-  `Assets/Cartoon FX Pack`, etc. are vendor-owned; an asset update replaces their contents.
-- **Rule:** Never put our scripts, scenes, or modified vendor files in vendor folders. Our code
-  lives in `Assets/_Core` only. If a vendor file must change, copy it into `_Core` and modify the copy.
+- **What:** `Assets/Feel`, `Assets/Plugins/*`, `Assets/Pivot++`, `Assets/Cartoon FX Pack`… are
+  vendor-owned; an update replaces their contents.
+- **Rule:** Our code lives in `Assets/_Core` only. If a vendor file must change, copy it into `_Core`
+  and edit the copy.
 
-## G-007: Generated files are ignored — don't track them
+## G-007: Generated files must not be tracked
 - **Status:** Avoided
-- **What happened / will happen:** `Library/`, `Temp/`, `Logs/`, root `*.csproj`, `*.slnx` are
-  Unity-generated and gitignored. `Library/` still appears on disk (fine). Two `.slnx` files are
-  tracked because they were committed before the ignore rule existed.
-- **Rule:** Never `git add` generated files. If a tracked-but-ignored file needs removing
-  (e.g. the duplicate `Flame_Blame-challenge.slnx`), do it explicitly with `git rm --cached`.
+- **What:** `Library/`, `Temp/`, `Logs/`, root `*.csproj`/`*.slnx` are Unity-generated; two `.slnx`
+  files were committed before the ignore rule existed.
+- **Rule:** Never `git add` generated files. Removing a tracked one is an explicit `git rm --cached`.
 
-## G-008: Test framework is transitive, not a direct dependency
-- **Status:** Resolved (2026-11-19)
-- **What happened / will happen:** `com.unity.test-framework` 1.8.0 is present in `packages-lock.json`
-  only as a transitive dependency (depth 1), so the Test Runner works, but relying on a transitive
-  dep is fragile — an unrelated package update could drop it.
-- **Rule:** When the first tests are written, add `com.unity.test-framework` to `Packages/manifest.json`
-  explicitly and create a `_Core/Tests` asmdef referencing `UnityEngine.TestRunner` +
-  `UnityEditor.TestRunner`.
-- **Resolution:** Done 2026-11-19 as part of D-016: `com.unity.test-framework` 1.8.0 is a direct
-  dependency in `Packages/manifest.json`, and `Assets/_Core/Tests/FlameNBlame.Tests.asmdef`
-  (`overrideReferences: true`, `precompiledReferences: ["nunit.framework.dll"]`,
-  `defineConstraints: ["UNITY_INCLUDE_TESTS"]`, `autoReferenced: false`) holds the push-model tests.
-  The lesson stands: a transitive dep can be dropped by an unrelated package update, so a dependency
-  tests rely on must be declared explicitly.
+## G-008: A test dependency present only transitively
+- **Status:** Resolved 2026-11-19
+- **What:** `com.unity.test-framework` 1.8.0 lived only in `packages-lock.json` as a transitive dep, so
+  an unrelated package update could drop it and the tests with it.
+- **Rule:** Declare the dependency in `Packages/manifest.json` explicitly, and give tests their own
+  asmdef with `defineConstraints: ["UNITY_INCLUDE_TESTS"]`, `overrideReferences: true` and
+  `precompiledReferences: ["nunit.framework.dll"]`.
 
 ## G-009: `CLAUDE.md` cannot live in `docs/`
 - **Status:** Avoided
-- **What happened / will happen:** Moving the project docs into `docs/` (D-011) looks like it should
-  include `CLAUDE.md`. It must not: Claude Code only auto-loads `CLAUDE.md` from the project root,
-  so a `docs/CLAUDE.md` is simply never read — the loss is silent, and every future session then
-  works without the commands, vendor boundaries or conventions, with nothing broken to notice by.
-- **Rule:** `CLAUDE.md` stays at repo root as a thin entry point that points into `docs/`; the other
-  docs move freely. When adding a doc, put it in `docs/` and add a pointer from `CLAUDE.md`.
+- **What:** Claude Code auto-loads `CLAUDE.md` only from the repo root, so a `docs/CLAUDE.md` is never
+  read — and nothing breaks, so nobody notices.
+- **Rule:** `CLAUDE.md` stays at repo root, thin, pointing into `docs/`. New docs go in `docs/`.
 
 ## G-010: Renaming a render pipeline asset rebinds and retunes nothing
 - **Status:** Open
-- **What happened / will happen:** `PC_RPAsset` → `Web_RPAsset` (with `PC_Renderer` →
-  `Web_Renderer`) renamed the files and kept their GUIDs, so it *looked* done. But the pipeline is
-  bound through **quality levels**, not file names: `Web_RPAsset` is still attached only to the
-  "PC" level, the "PC" level excludes WebGL (`QualitySettings.asset:119`), `WebGL` defaults to
-  level 0 "Mobile" (`QualitySettings.asset:137`), and that level's pipeline GUID `5e6cbd92…` pointed
-  at the deleted `Mobile_RPAsset` — so a web build has no pipeline (B-001). The editor shows none of
-  this because `m_CurrentQuality: 1` runs the PC level. The asset also still carries PC-grade
-  settings under its web name.
-- **Rule:** After renaming/deleting any pipeline asset, switch the actual build target and check
-  quality-level → pipeline routing per platform — the editor's current view proves nothing. Renaming
-  buys a name, never a retune: budget a separate pass to strip HDR/shadows/post for web.
+- **What:** `PC_RPAsset` → `Web_RPAsset` looked done (GUIDs kept). The pipeline is bound through
+  **quality levels**: `Web_RPAsset` is attached only to the "PC" level, that level excludes WebGL, and
+  WebGL defaults to level 0 "Mobile", whose pipeline GUID points at the deleted `Mobile_RPAsset` — so a
+  web build has no pipeline at all (B-001). The editor shows none of this (`m_CurrentQuality: 1`), and
+  the renamed asset still carries PC-grade settings.
+- **Rule:** After renaming/deleting any pipeline asset, switch the build target and check
+  quality-level → pipeline routing **per platform**. Renaming buys a name, never a retune: budget a
+  separate pass to strip HDR/shadows/post for web.
 
 ## G-011: Haptics don't exist on the shipping target
 - **Status:** Open
-- **What happened / will happen:** Nice Vibrations ships inside Feel and its modules are tempting
-  because they are two clicks away in an `MMF_Player`. On WebGL there is no haptic device path at
-  all, so anything tuned "by feel" via vibration is tuning a channel the player will never have —
-  and adding an NV module to a feedback prefab also re-creates the code dependency D-010 dropped.
-- **Rule:** Never gate game feel on haptics, and never add `NiceVibrations*` modules to an
-  `MMF_Player`. Express impact through camera, audio, particles and time instead (D-007, D-010).
+- **What:** Nice Vibrations modules are two clicks away in an `MMF_Player`, and tuning "by feel" via
+  vibration feels productive. On WebGL there is no haptic device path at all.
+- **Rule:** Never gate game feel on haptics, never add a `NiceVibrations*` module to an `MMF_Player`
+  (it also re-creates the code dependency D-010 dropped). Express impact through camera, audio,
+  particles and time.
 
 ## G-012: `CharacterController` keeps no velocity — a force's timer is not a physics rule
 - **Status:** Open
-- **What happened / will happen:** A 2-second hydrant preset expired while the player was still in
-  flight and velocity dropped to **zero in mid-air** — it flew fast, slowed, then stopped dead. That
-  is the feel of no inertia, and the cause is conceptual: the force's `Duration` was treated as
-  authoritative for velocity, so the force *ending* deleted the momentum it created. Unity's
-  `CharacterController.Move` teleports by the vector handed to it and stores nothing — no velocity,
-  no mass, no `AddForce`, no air suppression. `isGrounded` is also not contact: a wall hit is
-  invisible if the shell reports only grounded, so half of the absorption rule is missing.
-- **Rule:** **Never let a force's timer zero velocity — only contact zeroes momentum** (grounded
-  absorbs the vertical and push-Y; `CollisionFlags.Sides` absorbs the pushed X/Z and leaves the
-  player's own control velocity). The shell must report `CollisionFlags` **sides**, not just
-  `isGrounded`. Momentum lives in our own domain state (`PlayerMotion`), decays by authored drag and
-  saturates at authored `MaxPushSpeed`; `Duration` ends the *adding*, never the velocity (D-016).
-- **Also learned here:** a preset authored with **no curve at all** must read as a flat constant
-  force (the envelope evaluates to 1), never as a null crash; and an impulse re-fired every 0.1 s
-  stays **one** entry, because replace-per-`Type` resets progress — author a *flat* curve for a
-  constant shove, a decay envelope for a one-shot puff.
-- **Learned next to it, same system (2026-11-19):** the missing half of "only contact zeroes momentum"
-  was *how fast*. With one decay rate (`AirDrag`) the push channel kept 2.5 m/s two seconds after a
-  10 m/s launch while the control channel stopped at 12/s, and the player **skated like the floor was
-  ice** after any push that was not straight up. Rule: the push channel decays at authored `GroundDrag`
-  while grounded and `AirDrag` while airborne, and ground friction acts in the **ground plane only** —
-  touching the vertical component would eat a jump fired on the same tick (D-020, test T13).
+- **What:** A 2 s hydrant preset expired mid-flight and velocity dropped to **zero in mid-air**: fast,
+  then slow, then dead stop — the feel of no inertia. `CharacterController.Move` teleports by the vector
+  handed to it and stores nothing. Two more traps next to it: reporting only `isGrounded` hides wall
+  hits, and one decay rate for ground and air makes the floor read as ice.
+- **Rule:** **Never let a force's timer zero velocity — only contact zeroes momentum** (grounded absorbs
+  vertical + push-Y; `CollisionFlags.Sides` absorbs the pushed X/Z and leaves the player's own control
+  velocity). The shell reports `Sides`, not just `isGrounded`. Momentum lives in `PlayerMotion`, decays
+  at authored `GroundDrag` (grounded) / `AirDrag` (airborne), saturates at `MaxPushSpeed`; `Duration`
+  ends the *adding* only (D-016, D-020). A preset with no curve = a flat constant force, never a null.
+  A re-fired impulse stays **one** entry (replace-per-`Type` resets progress).
+
+## G-013: Unity's MCP server is deprecated, and the relay is fragile to drive by hand
+- **Status:** Avoided (the bridge is not wired, D-022)
+- **What:** Unity deprecates the MCP server in favour of the CLI. The bridge is a named pipe fed through
+  a relay binary (`~/.unity/relay/relay_win.exe --mcp`); piping JSON-RPC lines makes the relay see EOF —
+  it answers `initialize`, logs `discovered tools`, silently drops the queued `tools/list`, and Unity
+  logs `Handshake failed: Connection closed during write`. Hand-driving needs redirected stdin +
+  per-line timeouts, and approval under Project Settings ▸ AI.
+- **Rule:** Do not wire the MCP bridge into any client: `unity status` → `unity cmd` covers all 54 tools.
+  If a handshake is ever needed, keep stdin open and read stdout with a timeout — never pipe a file.
+
+## G-014: Unity CLI vector parameters are JSON arrays
+- **Status:** Avoided
+- **What:** `--position "2.553 0.75 1.6"` and `"2.553,0.75,1.6"` are both rejected
+  (`--position expects Single[]`). `gameobject find` has no `--path`.
+- **Rule:** Vectors as JSON arrays: `--position "[x,y,z]"`, `--scale "[x,y,z]"`. Address objects by
+  `--hierarchy-path "/Root/Child"` (the field `scene get_hierarchy` returns). Read parameters with
+  `unity cmd <group> <verb> --help` before guessing; `unity cmd --query <term>` searches the command
+  list (`unity cmd list` does not exist).
+
+## G-015: There is no `unity skill uninstall`, and `sync` re-creates everything
+- **Status:** Open
+- **What:** `unity skill` has only `show/install/sync/refresh/disable/enable`. Removing skills means
+  deleting folders; the CLI's tracking list keeps listing them, and `unity skill refresh` prunes the
+  tracking **and re-renders** the tracked ones, while `unity skill sync <client>` installs the full set —
+  so the habit of syncing after `unity self-update` silently brings back the 35 skills deleted on
+  2026-11-20 (D-023).
+- **Rule:** Trust the folders on disk, not `unity skills`. Never run `unity skill sync` or
+  `unity skill refresh`. Need one skill for one task:
+  `unity skill install opencode --local --skill <name>`, then delete its folder.

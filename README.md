@@ -23,18 +23,20 @@ haptics at all. Every system is judged against a web build, not just against the
 
 ## Scope
 
-Four pillars, locked in [docs/TDD.md](docs/TDD.md): the FPS controller with a single carry slot,
-the object-based fire system, the extinguisher, and the hydrant catapult. Meta/scoring, full co-op,
-building destruction, ragdoll/IK and the dam are deliberately out — the reasoning is in
-[docs/DECISIONS.md](docs/DECISIONS.md) D-008.
+Four pillars: the FPS controller with a single carry slot, the object-based fire system, the
+extinguisher, and the hydrant catapult. Meta/scoring, full co-op, building destruction, ragdoll/IK and
+the dam are deliberately out — the reasoning is in
+[docs/DECISIONS.md](docs/DECISIONS.md) D-008. (The design contract `TDD.md` is not in the repo; the
+pillars are recorded through D-008.)
 
 ## Documentation
 
-All project docs live in the [`docs/`](docs/) folder: the design contract (`TDD.md`,
-`Preproduction.md`) and the working memory we keep current as we build (`ARCHITECTURE.md`,
-`DECISIONS.md`, `GOTCHAS.md`, `BUGS.md`, `TODO.md`, `STYLE.md`). Start with
+All project docs live in the [`docs/`](docs/) folder, one job per file: the design contract
+(`TDD.md`, `Preproduction.md`) and the working memory we keep current as we build — `TODO.md` (the work
+list, bugs included), `DECISIONS.md` (current structure + the decision log), `ARCHITECTURE.md`
+(how to build), `GOTCHAS.md` (traps), `STYLE.md` (conventions). Start with
 [`docs/README.md`](docs/README.md) for the reading order, and
-[`CLAUDE.md`](CLAUDE.md) for engine, commands and vendor boundaries.
+[`CLAUDE.md`](CLAUDE.md) for behaviour, commands and vendor boundaries.
 
 ## Engine
 
