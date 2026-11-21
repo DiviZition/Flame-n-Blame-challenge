@@ -526,6 +526,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: FlameNBlame-asmdf::Flame_n_Blame_Challenge.Bootstrapper
   _gameSettingsConfig: {fileID: 11400000, guid: f43fa27a943b4bb41b134e91c6ca2ce0, type: 2}
   _resourcesConfig: {fileID: 11400000, guid: 3a5f3fd3e378c064e86199f280c73094, type: 2}
+  _pushPresetsConfig: {fileID: 11400000, guid: eb86ba75167465f4e8fb5db6e047bf26, type: 2}
 --- !u!1 &214569854
 GameObject:
   m_ObjectHideFlags: 0
@@ -1583,31 +1584,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 77aa693c5088f0e41beb8fbb7dd931b5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.HydrantPush
-  _pushPreset:
-    Type: 0
-    Kind: 0
-    Applies: 0
-    Force: 2000
-    Curve:
-      X:
-        serializedVersion: 2
-        m_Curve: []
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-      Y:
-        serializedVersion: 2
-        m_Curve: []
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-      Z:
-        serializedVersion: 2
-        m_Curve: []
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-    Duration: 2
+  _presets: {fileID: 11400000, guid: eb86ba75167465f4e8fb5db6e047bf26, type: 2}
+  _pushType: 0
   _pushDirection: {fileID: 515207059}
 --- !u!136 &971959113
 CapsuleCollider:

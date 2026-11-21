@@ -16,11 +16,11 @@ namespace Flame_n_Blame_Challenge.Domain
 
         public Vector3 Velocity => Motion.Velocity;
 
-        public Player(IPlayerInput input, IGameSettings settings)
+        public Player(IPlayerInput input, IGameSettings settings, IPushPresets presets)
         {
             LookRotation = new PlayerLookRotator(input, settings);
             Movement = new PlayerMovement(input, settings, LookRotation);
-            Motion = new PlayerMotion(Movement, settings);
+            Motion = new PlayerMotion(Movement, settings, presets);
         }
 
         /// Order within the composite: look, then the intent that reads it, then the velocity that reads
@@ -33,19 +33,22 @@ namespace Flame_n_Blame_Challenge.Domain
             Motion.UpdateLogic(time, deltaTime);
         }
 
-        /// Every push source reaches the player through here and nothing else: the hydrant, the spray,
-        /// debris. The player's own push (the jump) is fired by `PlayerMotion` itself.
-        public void ReceivePush(PushPresetData preset, Quaternion worldOrientation)
+        /// Every push source reaches the player through this one entry point and nothing else: the hydrant,
+        /// the spray, debris. The player's own push (the jump) is fired by `PlayerMotion` itself. The
+        /// direction is the **source's** Vector3 (`PushDirection.forward`), never the player's facing
+        /// (D-028); the type of the preset is its force shape, so the entry point does not branch (D-033).
+        public void ReceivePush(PushPresetData preset, Vector3 worldDirection)
         {
-            Motion.ApplyPush(preset, worldOrientation);
+            Motion.ApplyPush(preset, worldDirection);
         }
 
         /// One contact report feeds both halves of the domain that care about the ground: the locomotion
-        /// intent (air speed) and the motion rules (what absorbs momentum, what re-arms the jump).
-        public void ReportContact(bool grounded, bool sideContact)
+        /// intent (air speed) and the motion rules (what absorbs momentum, what re-arms the jump). The
+        /// normal is what lets the motion absorb a wall along its axis, not across the room.
+        public void ReportContact(bool grounded, Vector3 contactNormal)
         {
             Movement.SetIsGrounded(grounded);
-            Motion.ReportContact(grounded, sideContact);
+            Motion.ReportContact(grounded, contactNormal);
         }
     }
 }

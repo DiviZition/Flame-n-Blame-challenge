@@ -1,5 +1,4 @@
 using Flame_n_Blame_Challenge.Adapters;
-using Flame_n_Blame_Challenge.Domain;
 using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Tests
@@ -30,18 +29,5 @@ namespace Flame_n_Blame_Challenge.Tests
         public float AirDrag { get; set; } = 0.5f;
 
         public float MaxPushSpeed { get; set; } = 12f;
-
-        public PushPresetData JumpPreset { get; set; } = new PushPresetData
-        {
-            Type = PushType.PlayerJump,
-            Kind = PushKind.Impulse,
-            Applies = PushApplication.GroundedOnly,
-            Force = 100f,
-            Curve = new Vector3CurveData(
-                new AnimationCurve(new Keyframe(0f, 0f), new Keyframe(1f, 0f)),
-                new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 1f)),
-                new AnimationCurve(new Keyframe(0f, 0f), new Keyframe(1f, 0f))),
-            Duration = 0.2f
-        };
     }
 }

@@ -10,17 +10,20 @@ namespace Flame_n_Blame_Challenge.UseCases
     {
         private readonly GameUpdater _updater;
         private readonly IGameSettings _gameSettings;
+        private readonly IPushPresets _pushPresets;
         private readonly IResourceSpawner _resourceSpawner;
         private readonly IPlayerInput _inputs;
 
         private Player _player;
         private PlayerMotor _playerMotor;
 
-        public GamePlaySession(GameUpdater updater, IPlayerInput inputs, IGameSettings gameSettings, IResourceSpawner resourceSpawner)
+        public GamePlaySession(GameUpdater updater, IPlayerInput inputs, IGameSettings gameSettings,
+            IPushPresets pushPresets, IResourceSpawner resourceSpawner)
         {
             _updater = updater;
             _inputs = inputs;
             _gameSettings = gameSettings;
+            _pushPresets = pushPresets;
             _resourceSpawner = resourceSpawner;
 
             _updater.RegisterUpdatable(inputs as IUpdatable);
@@ -28,7 +31,7 @@ namespace Flame_n_Blame_Challenge.UseCases
 
         public void StartGamePlay()
         {
-            _player = new Player(_inputs, _gameSettings);
+            _player = new Player(_inputs, _gameSettings, _pushPresets);
 
             _playerMotor = _resourceSpawner.SpawnPlayer();
             _playerMotor.Construct(_player);

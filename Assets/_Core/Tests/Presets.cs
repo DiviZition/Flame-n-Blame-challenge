@@ -3,8 +3,10 @@ using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Tests
 {
-    /// Presets built from the requirements, not copied from the scene: flat curve = constant force,
-    /// decay envelope = one puff. Impulse Force is newton-seconds, Sustained Force is newtons.
+    /// Presets built from the requirements, not copied from the scene: a flat curve is a constant force, a
+    /// decaying envelope is one puff. Impulse Force is newton-seconds, Sustained Force is newtons, and the
+    /// **type of the DTO is the shape** — exactly what the Inspector authors with its type dropdown (D-028,
+    /// D-031).
     public static class Presets
     {
         public static AnimationCurve Flat()
@@ -12,42 +14,25 @@ namespace Flame_n_Blame_Challenge.Tests
             return new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 1f));
         }
 
-        public static AnimationCurve Zero()
+        public static AnimationCurve Decay()
         {
-            return new AnimationCurve(new Keyframe(0f, 0f), new Keyframe(1f, 0f));
+            return new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0f));
         }
 
-        public static PushPresetData ImpulseForward(PushType type, float forceNewtonSeconds)
+        public static PushPresetData Impulse(PushType type, float forceNewtonSeconds)
         {
-            return new PushPresetData
-            {
-                Type = type,
-                Kind = PushKind.Impulse,
-                Applies = PushApplication.Always,
-                Force = forceNewtonSeconds,
-                Curve = new Vector3CurveData(Zero(), Zero(), Flat()),
-                Duration = 0.1f
-            };
+            return new ImpulsePresetData(type, forceNewtonSeconds);
         }
 
-        public static PushPresetData SustainedForward(PushType type, float forceNewtons, float duration)
+        public static SustainedPresetData Sustained(PushType type, float forceNewtons, float duration)
         {
-            return new PushPresetData
-            {
-                Type = type,
-                Kind = PushKind.Sustained,
-                Applies = PushApplication.Always,
-                Force = forceNewtons,
-                Curve = new Vector3CurveData(Zero(), Zero(), Flat()),
-                Duration = duration
-            };
+            return new SustainedPresetData(type, forceNewtons, Flat(), duration);
         }
 
-        public static PushPresetData GroundedOnlyForward(PushType type, float forceNewtons, float duration)
+        public static SustainedPresetData Sustained(PushType type, float forceNewtons, float duration,
+            AnimationCurve curve)
         {
-            PushPresetData preset = SustainedForward(type, forceNewtons, duration);
-            preset.Applies = PushApplication.GroundedOnly;
-            return preset;
+            return new SustainedPresetData(type, forceNewtons, curve, duration);
         }
     }
 }

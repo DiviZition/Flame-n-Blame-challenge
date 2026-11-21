@@ -4,19 +4,35 @@ using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Domain
 {
-    /// Owns the player's motion state. CharacterController keeps no velocity, no mass, no AddForce, so
-    /// this is the only place momentum exists in the project. Position stays in Unity; Velocity is the
-    /// intent the shell integrates (ARCHITECTURE §5).
+    /// Owns the body's motion state. CharacterController keeps no velocity, no mass, no AddForce, so this
+    /// is the only place momentum exists in the project. Position stays in Unity; Velocity is the intent
+    /// the shell integrates (ARCHITECTURE §5).
     ///
-    /// Three channels, summed: ControlVelocity is the player's own movement and is never touched by a
-    /// push, PushVelocity is momentum from pushes, VerticalVelocity is gravity plus the vertical part
-    /// of a launch. A single vector would let the input steering step eat a launch back toward the
-    /// input intent; the split is what makes "pushes add, never replace" structural (U5).
+    /// Two channels, summed at the end: **horizontal** and **vertical**. ControlVelocity is the player's
+    /// own movement and is never touched by a push, PushVelocity is horizontal momentum from pushes,
+    /// VerticalVelocity is gravity plus the vertical part of every launch. A single vector would let the
+    /// input steering step eat a launch back toward the input intent; the split is what makes
+    /// "pushes add, never replace" structural (U5).
     ///
-    /// Momentum has two decay rates, because contact changes what absorbs it: authored `GroundDrag`
-    /// while grounded (a shove is friction against the ground and stops within about a second) and
-    /// authored `AirDrag` while airborne (the inertia of a launch during flight, which is the whole
-    /// point of D-016). One rate for both is what makes the ground read as ice.
+    /// The vertical split is what makes a **timed** launch possible. The ground zeroes vertical momentum,
+    /// so a launch that lives in the same channel as the ground is eaten by the next grounded tick: a
+    /// 2 s hydrant force, or a 0.5 s jump curve, accumulates nothing. The rule that keeps a launch alive is
+    /// the **normal force**, not a state and not a sign: the ground can only push up, so it absorbs
+    /// downward momentum **when the live vertical force does not exceed weight** (`Mass * Gravity`). A weak
+    /// jet is cancelled by the contact — physically right, a weak jet cannot lift you; a launch stronger
+    /// than weight breaks the contact, accumulates, leaves the ground, and its momentum survives flight
+    /// (G-016, G-020). No launch flag is stored: contact, the live force sum and the sign of vertical are
+    /// the whole rule.
+    ///
+    /// Wall absorption is by the **contact normal**, not by `CollisionFlags.Sides`: `Sides` gives no axis,
+    /// so zeroing "the wall" on both axes kills momentum running parallel to it — sliding along a wall
+    /// stops dead. The normal is reported by the shell (G-016); only the component along the normal is
+    /// absorbed.
+    ///
+    /// Momentum has two decay rates, because contact changes what absorbs it: authored `GroundDrag` while
+    /// grounded (a shove is friction against the ground and stops within about a second) and authored
+    /// `AirDrag` while airborne (the inertia of a launch during flight, which is the whole point of D-016).
+    /// One rate for both is what makes the ground read as ice (G-012).
     ///
     /// Perf budget (TODO.md, written before code): 8 simultaneous pushes, no per-tick allocation,
     /// < 0.05 ms per player per tick.
@@ -26,21 +42,52 @@ namespace Flame_n_Blame_Challenge.Domain
         private const float DurationFloor = 0.001f;
         private const float MassFloor = 0.001f;
 
+        /// A contact normal is a wall when it faces sideways. 0.5 is the boundary of a 60° slope, so a
+        /// steep ramp absorbs the wall component like a wall and a walkable slope does not.
+        private const float WallNormalMaxY = 0.5f;
+
         private readonly PlayerMovement _movement;
         private readonly IGameSettings _settings;
+        private readonly IPushPresets _presets;
         private readonly List<ActivePush> _activePushes = new(MaxSimultaneousPushes);
 
         private Vector3 _controlVelocity;
         private Vector3 _pushVelocity;
         private float _verticalVelocity;
         private float _inverseMass;
+        private float _mass;
 
         private bool _contactGrounded;
-        private bool _contactSide;
+        private Vector3 _contactNormal;
         private bool _jumpFiredThisContact;
 
         public Vector3 Velocity { get; private set; }
         public bool IsGrounded { get; private set; }
+
+        /// The body is rising. Not a stored state: rising is what a launch leaves behind, and the ground
+        /// absorbs only the opposite direction.
+        public bool IsLaunched => _verticalVelocity > 0f;
+
+        /// The normal-force fact: how much vertical force the live **Sustained** pushes apply right now,
+        /// envelope included. Impulse pushes are not in the sum — an impulse lands as velocity, not as
+        /// force, so the sign rule covers it. Derived from the active list, never stored (D-030). It is
+        /// read by `ApplyContact` alone, so it is private: the ground's rule is the only reader (D-033).
+        private float LiveVerticalForce()
+        {
+            float total = 0f;
+
+            for (int i = 0; i < _activePushes.Count; i++)
+            {
+                ActivePush push = _activePushes[i];
+                if (push.IsFinished || push.Preset.IsImpulse)
+                    continue;
+
+                SustainedPresetData sustained = (SustainedPresetData)push.Preset;
+                total += sustained.Force * sustained.EnvelopeAt(push.Progress) * push.Direction.y;
+            }
+
+            return total;
+        }
 
         // Read only for tests: the channels must stay separable, not just the sum.
         public Vector3 ControlVelocity => _controlVelocity;
@@ -48,51 +95,70 @@ namespace Flame_n_Blame_Challenge.Domain
         public float VerticalVelocity => _verticalVelocity;
         public int ActivePushCount => _activePushes.Count;
 
-        public PlayerMotion(PlayerMovement movement, IGameSettings settings)
+        public PlayerMotion(PlayerMovement movement, IGameSettings settings, IPushPresets presets)
         {
             _movement = movement;
             _settings = settings;
+            _presets = presets;
 
             // Authored numbers are read once, here: they come from an asset and do not change mid-session
-            // (D-012). A test that wants another Mass builds a player with that Mass, it does not mutate a
+            // (D-012). A test that wants another Mass builds a body with that Mass, it does not mutate a
             // live one. Guarded once, not per tick: Mass 0 authored must not produce infinity (T11).
-            _inverseMass = 1f / Mathf.Max(settings.Mass, MassFloor);
+            _mass = Mathf.Max(settings.Mass, MassFloor);
+            _inverseMass = 1f / _mass;
             IsGrounded = true;
         }
 
-        /// Jump is one of the pushes (D-017), and its gate lives here: the two facts it needs are contact
-        /// (the ground the launch leaves) and the push channel (the momentum it adds), and this is the
-        /// domain class that owns both. `PlayerMovement` exposes the *request* only, never the rule.
+        /// Jump is one of the pushes (D-017), and its gate lives here for now: the two facts it needs are
+        /// contact (the ground the launch leaves) and the push channel (the momentum it adds), and this is
+        /// the domain class that owns both. `PlayerMovement` exposes the *request* only, never the rule.
+        /// Moving the gate to a `JumpUseCase` is D-027's second half.
         private void TryJump()
         {
             if (_movement.IsJumpRequested == false || IsGrounded == false || _jumpFiredThisContact)
                 return;
 
             _jumpFiredThisContact = true;
-            ApplyPush(_settings.JumpPreset, Quaternion.identity);
+            ApplyPush(_presets.PresetOf(PushType.PlayerJump), Vector3.up);
         }
 
-        /// The shell reports what Unity observed on the last Move. Side contact is edge-triggered:
-        /// one Move absorbs one wall hit.
-        public void ReportContact(bool grounded, bool sideContact)
+        /// The shell reports what Unity observed on the last Move: grounded, and the normal of the surface
+        /// it collided with (`OnControllerColliderHit`). The normal is edge-triggered: one Move absorbs one
+        /// wall hit.
+        public void ReportContact(bool grounded, Vector3 contactNormal)
         {
             _contactGrounded = grounded;
-            _contactSide = sideContact;
+            _contactNormal = contactNormal;
         }
 
-        /// The single entry point for every push source. Re-applying the same Type replaces the live
-        /// entry and resets its progress, which is what keeps a 0.1 s spray interval from stacking.
-        public void ApplyPush(PushPresetData preset, Quaternion worldOrientation)
+        /// The one entry point a push source uses. The **type of the DTO is the shape** (D-031), so the
+        /// entry point cannot branch: an `ImpulsePresetData` lands in one tick, a `SustainedPresetData`
+        /// accumulates `Force * Curve` over its `Duration`, and `TickPushes` reads that from the entry.
+        /// One method, not two named by shape: a second name for one behavior is dead surface (D-033).
+        public void ApplyPush(PushPresetData preset, Vector3 worldDirection)
         {
             if (preset == null)
                 return;
 
+            AddActivePush(preset, worldDirection);
+        }
+
+        /// Re-applying the same Type replaces the live entry and resets its progress, which is what keeps
+        /// a 0.1 s spray interval from stacking.
+        private void AddActivePush(PushPresetData preset, Vector3 worldDirection)
+        {
+            Vector3 direction = worldDirection;
+
+            if (direction.sqrMagnitude > 0.0001f)
+                direction.Normalize();
+            else
+                direction = Vector3.zero;
+
             ActivePush fresh = new ActivePush
             {
                 Preset = preset,
-                Direction = worldOrientation,
-                Progress = 0f,
-                FiredImpulse = false
+                Direction = direction,
+                Progress = 0f
             };
 
             int existing = FindPushIndex(preset.Type);
@@ -130,8 +196,13 @@ namespace Flame_n_Blame_Challenge.Domain
 
             if (IsGrounded)
             {
-                _pushVelocity.y = 0f;
-                _verticalVelocity = _settings.GroundedGravity;
+                // The ground's normal force can push only **up**, so it absorbs downward momentum — and only
+                // while the live vertical force does not exceed weight. The sign alone is the trap: a launch
+                // starts from the grounded rest value, which is negative, so a sign-only rule resets it every
+                // tick and nothing ever accumulates (G-020). A force weaker than weight is cancelled by the
+                // contact, which is the honest case: a weak jet cannot lift you.
+                if (_verticalVelocity <= 0f && LiveVerticalForce() <= _mass * _settings.Gravity)
+                    _verticalVelocity = _settings.GroundedGravity;
             }
             else
             {
@@ -140,14 +211,26 @@ namespace Flame_n_Blame_Challenge.Domain
                 _jumpFiredThisContact = false;
             }
 
-            if (_contactSide)
+            if (IsWallContact(_contactNormal))
             {
-                // The wall absorbs the launch momentum and leaves control intact: the player can still
-                // walk away from it (U4).
-                _pushVelocity.x = 0f;
-                _pushVelocity.z = 0f;
-                _contactSide = false;
+                // Absorb only the component running INTO the surface; the component along it is kept, so
+                // a shove parallel to a wall survives and the player slides along it.
+                Vector3 normal = _contactNormal.normalized;
+                Vector3 normalAxis = new Vector3(normal.x, 0f, normal.z);
+
+                if (normalAxis.sqrMagnitude > 0.0001f)
+                {
+                    normalAxis.Normalize();
+                    _pushVelocity -= normalAxis * Vector3.Dot(_pushVelocity, normalAxis);
+                }
+
+                _contactNormal = Vector3.zero;
             }
+        }
+
+        private static bool IsWallContact(Vector3 normal)
+        {
+            return normal.sqrMagnitude > 0.0001f && normal.y < WallNormalMaxY;
         }
 
         private void ApplyGravity(float deltaTime)
@@ -168,27 +251,31 @@ namespace Flame_n_Blame_Challenge.Domain
                     continue;
                 }
 
-                bool allowed = push.Preset.Applies == PushApplication.Always || IsGrounded;
-
-                if (push.Preset.Kind == PushKind.Impulse)
+                // The shape is the type of the DTO, so an Impulse has no Duration and no curve to read: its
+                // Force lands now and the entry is done (D-028, D-031).
+                if (push.Preset.IsImpulse)
                 {
-                    if (allowed && !push.FiredImpulse)
-                        _pushVelocity += push.Direction * EnvelopeAt(push.Preset.Curve, 0f) * (push.Preset.Force * _inverseMass);
-
+                    AddPushDelta(push.Direction * (push.Preset.Force * _inverseMass));
                     _activePushes.RemoveAt(i);
                     continue;
                 }
 
-                float progressStep = deltaTime / Mathf.Max(push.Preset.Duration, DurationFloor);
+                SustainedPresetData sustained = (SustainedPresetData)push.Preset;
+                float progressStep = deltaTime / Mathf.Max(sustained.Duration, DurationFloor);
                 push.Progress = Mathf.Min(1f, push.Progress + progressStep);
                 _activePushes[i] = push;
 
-                if (!allowed)
-                    continue;
-
-                Vector3 localEnvelope = EnvelopeAt(push.Preset.Curve, push.Progress);
-                _pushVelocity += push.Direction * localEnvelope * (push.Preset.Force * _inverseMass) * deltaTime;
+                AddPushDelta(push.Direction * sustained.EnvelopeAt(push.Progress)
+                    * (sustained.Force * _inverseMass) * deltaTime);
             }
+        }
+
+        /// The horizontal part of a push is the shove channel; its vertical part is a launch and belongs
+        /// to the gravity channel, where the ground cannot eat it while it rises (G-016).
+        private void AddPushDelta(Vector3 delta)
+        {
+            _pushVelocity += new Vector3(delta.x, 0f, delta.z);
+            _verticalVelocity += delta.y;
         }
 
         private void ApplyInputControl(float deltaTime)
@@ -208,19 +295,14 @@ namespace Flame_n_Blame_Challenge.Domain
 
         private void ApplyDrag(float deltaTime)
         {
-            if (IsGrounded)
-            {
-                // Ground friction acts in the ground plane, on the slide. It must not touch the vertical
-                // component: contact already owns vertical momentum, and a launch fired on this very tick
-                // would otherwise be eaten by the friction that is supposed to absorb it.
-                float groundRetained = Mathf.Max(0f, 1f - _settings.GroundDrag * deltaTime);
-                _pushVelocity.x *= groundRetained;
-                _pushVelocity.z *= groundRetained;
-                return;
-            }
+            // Drag is a horizontal-plane rule: the vertical channel is kept by gravity and terminal
+            // velocity, and ground contact already owns vertical momentum.
+            float retained = IsGrounded
+                ? Mathf.Max(0f, 1f - _settings.GroundDrag * deltaTime)
+                : Mathf.Max(0f, 1f - _settings.AirDrag * deltaTime);
 
-            float airRetained = Mathf.Max(0f, 1f - _settings.AirDrag * deltaTime);
-            _pushVelocity *= airRetained;
+            _pushVelocity.x *= retained;
+            _pushVelocity.z *= retained;
         }
 
         private void ClampPushVelocity()
@@ -232,16 +314,6 @@ namespace Flame_n_Blame_Challenge.Domain
             float speed = _pushVelocity.magnitude;
             if (speed > cap)
                 _pushVelocity *= cap / speed;
-        }
-
-        /// A preset authored with no curve at all (an empty Inspector slot) is a constant force, not a
-        /// crash: the envelope reads as flat.
-        private static Vector3 EnvelopeAt(Vector3CurveData curve, float progress)
-        {
-            if (curve == null)
-                return Vector3.one;
-
-            return curve.Evaluate(progress);
         }
 
         /// Read only for tests: the list order is observable so overflow (drop the oldest) can be

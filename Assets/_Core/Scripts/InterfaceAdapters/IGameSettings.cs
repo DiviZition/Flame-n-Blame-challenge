@@ -1,4 +1,3 @@
-using Flame_n_Blame_Challenge.Domain;
 using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Adapters
@@ -28,7 +27,5 @@ namespace Flame_n_Blame_Challenge.Adapters
         float AirDrag { get; }
 
         float MaxPushSpeed { get; }
-
-        PushPresetData JumpPreset { get; }
     }
 }

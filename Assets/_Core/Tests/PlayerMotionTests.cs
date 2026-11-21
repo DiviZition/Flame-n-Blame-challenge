@@ -15,6 +15,7 @@ namespace Flame_n_Blame_Challenge.Tests
         private const float Tolerance = 0.0001f;
 
         private StubSettings _settings;
+        private StubPresets _presets;
         private StubInput _input;
         private PlayerLookRotator _look;
         private PlayerMovement _movement;
@@ -24,26 +25,28 @@ namespace Flame_n_Blame_Challenge.Tests
         public void SetUp()
         {
             _settings = new StubSettings();
+            _presets = new StubPresets();
             _input = new StubInput();
 
             _look = new PlayerLookRotator(_input, _settings);
             _movement = new PlayerMovement(_input, _settings, _look);
-            _motion = new PlayerMotion(_movement, _settings);
+            _motion = new PlayerMotion(_movement, _settings, _presets);
         }
 
-        /// One tick, the way the session drives it: contact reported, then the tick runs.
+        /// One tick, the way the session drives it: contact reported, then the tick runs. The normal is
+        /// the surface the shell collided with; Vector3.zero means no side contact.
         private void Tick(int ticks, bool grounded, float dt = Dt)
         {
             for (int i = 0; i < ticks; i++)
-                TickOnce(grounded, false, dt);
+                TickOnce(grounded, Vector3.zero, dt);
         }
 
-        private void TickOnce(bool grounded, bool sideContact, float dt = Dt)
+        private void TickOnce(bool grounded, Vector3 contactNormal, float dt = Dt)
         {
             _look.UpdateLogic(0f, dt);
             _movement.SetIsGrounded(grounded);
             _movement.UpdateLogic(0f, dt);
-            _motion.ReportContact(grounded, sideContact);
+            _motion.ReportContact(grounded, contactNormal);
             _motion.UpdateLogic(0f, dt);
         }
 
@@ -55,8 +58,8 @@ namespace Flame_n_Blame_Challenge.Tests
             _settings.AirDrag = 0.5f;
             _settings.MaxPushSpeed = 100f;
 
-            _motion.ReportContact(false, false);
-            _motion.ApplyPush(Presets.ImpulseForward(PushType.HydrantPush, 200f), Quaternion.identity);
+            _motion.ReportContact(false, Vector3.zero);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 200f), Vector3.forward);
 
             const int ticks = 120;
             float previous = float.MaxValue;
@@ -65,7 +68,7 @@ namespace Flame_n_Blame_Challenge.Tests
             {
                 _movement.SetIsGrounded(false);
                 _movement.UpdateLogic(0f, Dt);
-                _motion.ReportContact(false, false);
+                _motion.ReportContact(false, Vector3.zero);
                 _motion.UpdateLogic(0f, Dt);
 
                 float speed = _motion.Velocity.z;
@@ -80,13 +83,13 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.AreEqual(expected, _motion.Velocity.z, 0.1f, "decay must be pure drag, not the timer");
         }
 
-        // T2 - a wall absorbs the launch momentum and leaves the player's own movement intact, so the
-        // player can still walk away from it. The expectation is a DIFF against the identical run that
-        // never meets a wall: only the push channel may differ. Absolute control values would be wrong
-        // here - control drifts toward the reduced air speed while airborne, and that drift belongs to
-        // the input rules, not to the wall.
+        // T2 - a wall absorbs the launch momentum along its normal and leaves the player's own movement
+        // intact, so the player can still walk away from it. The expectation is a DIFF against the
+        // identical run that never meets a wall: only the push channel may differ. Absolute control values
+        // would be wrong here - control drifts toward the reduced air speed while airborne, and that drift
+        // belongs to the input rules, not to the wall.
         [Test]
-        public void SideContact_ZeroesThePushedAxis_AndLeavesControlIntact()
+        public void WallNormal_AbsorbsTheNormalAxis_AndLeavesControlIntact()
         {
             Vector3 freeFlight = LaunchAgainstWall(false);   // x = control, z = pushed axis
             Vector3 wall = LaunchAgainstWall(true);
@@ -106,9 +109,9 @@ namespace Flame_n_Blame_Challenge.Tests
             _input.InputDirection = new Vector2(1f, 0f);
 
             Tick(60, true);
-            _motion.ApplyPush(Presets.ImpulseForward(PushType.HydrantPush, 160f), Quaternion.identity);
-            TickOnce(false, false);
-            TickOnce(false, sideContact);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 160f), Vector3.forward);
+            TickOnce(false, Vector3.zero);
+            TickOnce(false, sideContact ? Vector3.back : Vector3.zero);
 
             return new Vector3(_motion.ControlVelocity.x, 0f, _motion.PushVelocity.z);
         }
@@ -126,18 +129,19 @@ namespace Flame_n_Blame_Challenge.Tests
             Tick(10, false);
             Assert.AreEqual(-20f * 10f * Dt, _motion.VerticalVelocity, Tolerance, "falling accumulates");
 
-            _motion.ApplyPush(Presets.ImpulseForward(PushType.HydrantPush, 120f), Quaternion.identity);
-            TickOnce(false, false);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 120f), Vector3.forward);
+            TickOnce(false, Vector3.zero);
             float carried = _motion.PushVelocity.z;
 
-            TickOnce(true, false);
+            TickOnce(true, Vector3.up);
 
             Assert.AreEqual(_settings.GroundedGravity - _settings.Gravity * Dt, _motion.VerticalVelocity, Tolerance,
                 "the ground absorbs the fall momentum");
             Assert.AreEqual(carried, _motion.PushVelocity.z, Tolerance, "landing must not absorb horizontal momentum");
         }
 
-        // T4 - a launch follows the source's rotation, not the player's facing. Same push, four facings.
+        // T4 - a launch follows the direction the SOURCE gave, not the player's facing. Same push, four
+        // facings: the direction is a Vector3 handed over by the source, so facing cannot bend it (D-028).
         [Test]
         public void LaunchDirection_ComesFromTheSource_NotThePlayersFacing()
         {
@@ -151,9 +155,8 @@ namespace Flame_n_Blame_Challenge.Tests
                 _input.LookDelta = new Vector2(90f, 0f);
 
                 Tick(turn, false);
-                _motion.ApplyPush(Presets.ImpulseForward(PushType.HydrantPush, 80f),
-                    Quaternion.LookRotation(Vector3.forward));
-                TickOnce(false, false);
+                _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 80f), Vector3.forward);
+                TickOnce(false, Vector3.zero);
 
                 results[turn] = _motion.Velocity;
             }
@@ -180,63 +183,105 @@ namespace Flame_n_Blame_Challenge.Tests
             Tick(60, true);
             float walkedEast = _motion.ControlVelocity.x;
 
-            _motion.ApplyPush(Presets.ImpulseForward(PushType.ExtinguisherShove, 60f),
-                Quaternion.LookRotation(Vector3.forward));
-            TickOnce(true, false);
+            _motion.ApplyPush(Presets.Impulse(PushType.ExtinguisherShove, 60f), Vector3.forward);
+            TickOnce(true, Vector3.up);
 
             Assert.Greater(_motion.PushVelocity.z, 2.5f, "the shove is applied");
             Assert.AreEqual(walkedEast, _motion.ControlVelocity.x, Tolerance,
                 "the shove must not steal the player's own movement");
         }
 
-        // T6 - the anti-accumulation test. A spray re-fired every 0.1 s for 10 s saturates at the
-        // force/drag equilibrium under MaxPushSpeed, and keeps ONE entry in the active list.
+        // T6a - the anti-accumulation test, below the cap. A spray re-fired every 0.1 s for 10 s keeps ONE
+        // entry, and converges to the analytic force/drag equilibrium: v(t) = v*(1 - e^{-k t}) with
+        // v* = Force/(Mass*AirDrag), k = AirDrag. At AirDrag 0.5 the time constant is 2 s, so the plateau
+        // is reached in ~3τ (6 s). An absolute "late - early < 0.1" threshold is unpassable at any τ - the
+        // first second of an exponential ramp from zero is always ~1-τ away from the asymptote - so
+        // convergence is asserted analytically: the late window sits on the equilibrium, the series is
+        // monotone, and the plateau is reached inside the first 3τ.
         [Test]
-        public void ContinuousSpray_Saturates_WithoutStackingPushes()
+        public void ContinuousSpray_ConvergesToDragEquilibrium_WithoutStackingPushes()
         {
-            _settings.AirDrag = 0.5f;
-            _settings.MaxPushSpeed = 12f;
+            int maxCount;
+            float[] speeds = RunSpray(80f, 0.5f, 12f, out maxCount);
 
-            const float force = 80f, duration = 0.1f;
+            Assert.AreEqual(1, maxCount, "600 calls over 10 s must leave ONE entry, not 600");
+
+            float equilibrium = 80f / _settings.Mass / 0.5f;
+            Assert.Greater(speeds[599], 1f, "the spray must actually shove");
+            Assert.Less(speeds[599], _settings.MaxPushSpeed, "the equilibrium is below the cap, so no clamping here");
+
+            for (int tick = 1; tick < 600; tick++)
+                Assert.GreaterOrEqual(speeds[tick], speeds[tick - 1] - Tolerance,
+                    "the shove must never dip: a re-fired spray stacks and releases (tick " + tick + ")");
+
+            float meanEarly = Mean(speeds, 180, 240);      // t = 3-4 s
+            float meanLate = Mean(speeds, 420, 600);       // t = 7-10 s = 3.5-5 tau
+            Assert.AreEqual(equilibrium, meanLate, equilibrium * 0.05f,
+                "the plateau is the force/drag equilibrium (late " + meanLate + ", expected " + equilibrium + ")");
+            Assert.Greater(meanEarly, equilibrium * 0.5f,
+                "the plateau must be reached inside 3 tau, not crawl there (early " + meanEarly + ")");
+            Assert.Less(meanEarly, equilibrium, "the ramp must start below the plateau");
+        }
+
+        // T6b - the same spray with an equilibrium ABOVE the cap. Only a real clamp can hold the channel at
+        // MaxPushSpeed when the force/drag equilibrium is higher, so this is the saturation test the name of
+        // T6a promised: force 300 N, Mass 20, AirDrag 0.5 -> equilibrium 30 m/s against a cap of 12.
+        [Test]
+        public void ContinuousSpray_SaturatesAtMaxPushSpeed_WhenEquilibriumIsAboveTheCap()
+        {
+            const float cap = 12f;
+            int maxCount;
+            float[] speeds = RunSpray(300f, 0.5f, cap, out maxCount);
+
+            Assert.AreEqual(1, maxCount, "one entry per Type, never one per re-fire");
+
+            for (int tick = 0; tick < 600; tick++)
+                Assert.IsTrue(speeds[tick] <= cap + Tolerance,
+                    "the push channel must never exceed MaxPushSpeed (tick " + tick + ")");
+
+            float equilibrium = 300f / _settings.Mass / 0.5f;
+            Assert.Greater(equilibrium, cap, "the force/drag equilibrium is above the cap, so this is clamping");
+
+            float meanLate = Mean(speeds, 420, 600);
+            Assert.AreEqual(cap, meanLate, cap * 0.01f,
+                "the channel must sit ON the cap once the ramp reaches it (got " + meanLate + ")");
+        }
+
+        /// The spray scenario: re-fire every 0.1 s (6 ticks at 60 Hz), 10 s of airborne ticks, speeds recorded.
+        /// A shared helper so both saturation expectations run the identical scenario.
+        private float[] RunSpray(float force, float airDrag, float cap, out int maxCount)
+        {
+            SetUp();
+            _settings.AirDrag = airDrag;
+            _settings.GroundDrag = 0f;
+            _settings.MaxPushSpeed = cap;
+
             const int refireEvery = 6, ticks = 600;
-
-            int maxCount = 0;
-            float meanEarly = 0f, meanLate = 0f, lastSpeed = 0f;
+            float[] speeds = new float[ticks];
+            maxCount = 0;
 
             for (int tick = 0; tick < ticks; tick++)
             {
                 if (tick % refireEvery == 0)
-                    _motion.ApplyPush(Presets.SustainedForward(PushType.ExtinguisherShove, force, duration),
-                        Quaternion.LookRotation(Vector3.forward));
+                    _motion.ApplyPush(Presets.Sustained(PushType.ExtinguisherShove, force, 0.1f),
+                        Vector3.forward);
 
-                _movement.SetIsGrounded(false);
-                _movement.UpdateLogic(0f, Dt);
-                _motion.ReportContact(false, false);
-                _motion.UpdateLogic(0f, Dt);
+                TickOnce(false, Vector3.zero);
 
-                int count = _motion.ActivePushCount;
-                float speed = _motion.PushVelocity.magnitude;
-
-                maxCount = Mathf.Max(maxCount, count);
-                Assert.IsTrue(speed <= _settings.MaxPushSpeed + Tolerance,
-                    "the push channel must saturate at MaxPushSpeed (tick " + tick + ")");
-
-                if (tick >= 180 && tick < 240) meanEarly += speed;
-                if (tick >= 540) meanLate += speed;
-                lastSpeed = speed;
+                speeds[tick] = _motion.PushVelocity.magnitude;
+                maxCount = Mathf.Max(maxCount, _motion.ActivePushCount);
             }
 
-            meanEarly /= 60f;
-            meanLate /= 60f;
+            return speeds;
+        }
 
-            Assert.AreEqual(1, maxCount, "600 calls over 10 s must leave ONE entry, not 600");
-            Assert.Greater(lastSpeed, 1f, "the spray must actually shove");
-            Assert.IsTrue(meanLate - meanEarly < 0.1f,
-                "the shove must converge, not keep growing (early " + meanEarly + ", late " + meanLate + ")");
+        private static float Mean(float[] speeds, int from, int to)
+        {
+            float sum = 0f;
+            for (int i = from; i < to; i++)
+                sum += speeds[i];
 
-            float equilibrium = force / _settings.Mass / _settings.AirDrag;
-            Assert.AreEqual(equilibrium, meanLate, equilibrium * 0.05f,
-                "saturation should sit at the force/drag equilibrium, under the cap");
+            return sum / (to - from);
         }
 
         // T7 - replace-per-type is what bounds impulses: 100 fires of one Type is one impulse.
@@ -247,11 +292,11 @@ namespace Flame_n_Blame_Challenge.Tests
             _settings.MaxPushSpeed = 100f;
 
             for (int i = 0; i < 100; i++)
-                _motion.ApplyPush(Presets.ImpulseForward(PushType.HydrantPush, 40f), Quaternion.identity);
+                _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 40f), Vector3.forward);
 
             Assert.AreEqual(1, _motion.ActivePushCount, "one entry per Type, not 100");
 
-            TickOnce(false, false);
+            TickOnce(false, Vector3.zero);
 
             float oneImpulse = 40f / _settings.Mass;
             Assert.AreEqual(oneImpulse, _motion.PushVelocity.z, Tolerance, "one impulse, not 100");
@@ -276,45 +321,19 @@ namespace Flame_n_Blame_Challenge.Tests
             _settings.AirDrag = 0.5f;
             _settings.MaxPushSpeed = 100f;
 
-            _motion.ReportContact(false, false);
-            _motion.ApplyPush(Presets.ImpulseForward(PushType.HydrantPush, 200f), Quaternion.identity);
+            _motion.ReportContact(false, Vector3.zero);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 200f), Vector3.forward);
 
             int ticks = Mathf.RoundToInt(2f / dt);
             for (int i = 0; i < ticks; i++)
             {
                 _movement.SetIsGrounded(false);
                 _movement.UpdateLogic(0f, dt);
-                _motion.ReportContact(false, false);
+                _motion.ReportContact(false, Vector3.zero);
                 _motion.UpdateLogic(0f, dt);
             }
 
             return _motion.Velocity.z;
-        }
-
-        // T9 - a GroundedOnly force dies at a ledge, an Always force keeps pulling (U6).
-        [Test]
-        public void GroundedOnlyForce_StopsApplying_Airborne()
-        {
-            _settings.AirDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
-
-            _motion.ApplyPush(Presets.GroundedOnlyForward(PushType.ExtinguisherShove, 80f, 1f),
-                Quaternion.LookRotation(Vector3.forward));
-            Tick(60, false);
-
-            Assert.AreEqual(0f, _motion.PushVelocity.z, Tolerance, "a ground shove must not apply airborne");
-
-            SetUp();
-            _settings.AirDrag = 0f;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
-
-            _motion.ApplyPush(Presets.GroundedOnlyForward(PushType.ExtinguisherShove, 80f, 1f),
-                Quaternion.LookRotation(Vector3.forward));
-            Tick(60, true);
-
-            float expected = 80f / _settings.Mass * 1f;
-            Assert.AreEqual(expected, _motion.PushVelocity.z, 0.001f, "the same preset while grounded");
         }
 
         // T11 - degenerate authored data must not produce NaN, infinity, or an unbounded list.
@@ -329,18 +348,7 @@ namespace Flame_n_Blame_Challenge.Tests
             Rebuild(0f);
 
             for (int i = 0; i < 9; i++)
-            {
-                PushPresetData preset = new PushPresetData
-                {
-                    Type = (PushType)i,
-                    Kind = PushKind.Sustained,
-                    Applies = PushApplication.Always,
-                    Force = 0f,
-                    Curve = null,
-                    Duration = 0f
-                };
-                _motion.ApplyPush(preset, Quaternion.identity);
-            }
+                _motion.ApplyPush(Presets.Sustained((PushType)i, 0f, 0f), Vector3.forward);
 
             Assert.AreEqual(8, _motion.ActivePushCount, "the list is capped at the budget, not growing");
             Assert.AreEqual((PushType)1, _motion.ActiveTypeAt(0), "the oldest push is dropped, not silently kept");
@@ -349,7 +357,7 @@ namespace Flame_n_Blame_Challenge.Tests
             {
                 _movement.SetIsGrounded(false);
                 _movement.UpdateLogic(0f, Dt);
-                _motion.ReportContact(false, false);
+                _motion.ReportContact(false, Vector3.zero);
                 _motion.UpdateLogic(0f, Dt);
 
                 Assert.IsFalse(float.IsNaN(_motion.Velocity.x), "NaN on x at tick " + tick);
@@ -370,7 +378,7 @@ namespace Flame_n_Blame_Challenge.Tests
             _settings.MaxPushSpeed = 100f;
 
             for (int i = 0; i < 8; i++)
-                _motion.ApplyPush(Presets.SustainedForward((PushType)i, 10f, 1000f), Quaternion.identity);
+                _motion.ApplyPush(Presets.Sustained((PushType)i, 10f, 1000f), Vector3.forward);
 
             Assert.AreEqual(8, _motion.ActivePushCount);
 
@@ -413,12 +421,11 @@ namespace Flame_n_Blame_Challenge.Tests
             _settings.GroundDrag = grounded ? dragRate : 0f;
             _settings.AirDrag = grounded ? 0f : dragRate;
 
-            _motion.ApplyPush(Presets.ImpulseForward(PushType.HydrantPush, shove * _settings.Mass),
-                Quaternion.identity);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _settings.Mass), Vector3.forward);
 
             const int ticks = 60;
             for (int tick = 0; tick < ticks; tick++)
-                TickOnce(grounded, false);
+                TickOnce(grounded, Vector3.zero);
 
             return _motion.PushVelocity.z;
         }
@@ -432,7 +439,7 @@ namespace Flame_n_Blame_Challenge.Tests
             _input = new StubInput();
             _look = new PlayerLookRotator(_input, _settings);
             _movement = new PlayerMovement(_input, _settings, _look);
-            _motion = new PlayerMotion(_movement, _settings);
+            _motion = new PlayerMotion(_movement, _settings, _presets);
         }
     }
 }

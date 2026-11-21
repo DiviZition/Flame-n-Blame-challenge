@@ -1,4 +1,3 @@
-using Flame_n_Blame_Challenge.Domain;
 using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Adapters
@@ -35,15 +34,5 @@ namespace Flame_n_Blame_Challenge.Adapters
         /// Anti-accumulation guard on the push channel: a sustained source saturates here instead of
         /// accelerating the player away forever. 0 means no cap.
         [field: SerializeField] public float MaxPushSpeed { get; private set; } = 12f;
-
-        [field: SerializeField] public PushPresetData JumpPreset { get; private set; } = new PushPresetData
-        {
-            Type = PushType.PlayerJump,
-            Kind = PushKind.Impulse,
-            Applies = PushApplication.GroundedOnly,
-            Force = 400f,
-            Curve = Vector3CurveData.Up(),
-            Duration = 0.2f
-        };
     }
 }
