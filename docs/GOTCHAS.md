@@ -133,3 +133,87 @@ changing an ID, a status or a Rule is not (D-024).
 - **Rule:** Trust the folders on disk, not `unity skills`. Never run `unity skill sync` or
   `unity skill refresh`. Need one skill for one task:
   `unity skill install opencode --local --skill <name>`, then delete its folder.
+
+## G-016: A timed launch is eaten by the ground, and `CollisionFlags.Sides` has no axis
+- **Status:** Resolved 2026-11-20 (D-027)
+- **What:** Vertical launch momentum lived in the push channel, which the ground zeroes every grounded
+  tick — so a 2 s hydrant force or a 0.5 s jump curve accumulates nothing. And `Sides` is a boolean: the
+  rule built on it zeroed **both** X and Z, so sliding along a wall stopped the player dead.
+- **Rule:** Keep vertical momentum (gravity + launch) in its own channel, and let the ground absorb it
+  only when grounded **and not launched** — the landing ends the launch. The contact normal comes from
+  `OnControllerColliderHit` (Unity fires it inside `Move`); absorb the push **along the normal** and keep
+  the parallel component. A normal with y < 0.5 is a wall.
+
+## G-017: An absolute convergence threshold in a test is unpassable
+- **Status:** Resolved 2026-11-20 (D-027, B-003)
+- **What:** `meanLate - meanEarly < 0.1` on an exponential ramp fails at any τ: the first second is always
+  ~1τ below the asymptote. The test blamed the code (`MaxPushSpeed` "never clamped") while the clamp
+  existed and the cap sat above the force/drag equilibrium, so clamping was never exercised.
+- **Rule:** Assert the asymptote, not a difference of two windows: the late window on the analytic
+  equilibrium, the series monotone, the plateau inside 3τ. To test a **cap**, author the equilibrium
+  above it — if the cap is never reachable, the cap is not tested.
+
+## G-018: An empty curve times a rotation is a diagonal launch
+- **Status:** Recorded 2026-11-20 (D-028)
+- **What:** `Quaternion * AnimationCurve` with an empty X/Y/Z curve evaluated `(1,1,1)`, so the launch ran
+  along the diagonal of the nozzle's local space — up, right and forward at once. The player flew in a
+  direction no one had authored, and the Inspector gave no way to see it: the preset's `Duration` and decay
+  curve were ignored (`Kind = Impulse` reads neither), and `Applies` was dead.
+- **Rule:** Direction is a **Vector3 from the source** (`PushDirection.forward`), the envelope is **one
+  scalar curve** over progress. Never multiply a rotation by a curve, and never leave an Inspector field a
+  kind cannot read — an Impulse preset has no Duration, no curve, no application flag to author.
+
+## G-019: A serialized curve must be authored as YAML, not set through the CLI
+- **Status:** Recorded 2026-11-20 (D-028)
+- **What:** `component set_field` takes an enum, a Vector, an object reference and a `[Serializable]` struct,
+  but an `AnimationCurve` field comes back as `unsupported` on read and as a 'String' on write. A curve in a
+  preset asset is therefore authored as text: `asset write_text` with the serialized block Unity itself
+  writes (`m_Curve` keyframes + `m_PreInfinity`/`m_PostInfinity`/`m_RotationOrder`), field names exactly as
+  the private `[SerializeField]` names (`_type`, `_force`, `_curve`, `_duration`), `m_Script` set to the
+  script's `.meta` GUID. The asset's own GUID stays stable across the rewrite, so scene references survive.
+- **Rule:** Read back with `component get_fields` — the scalars return, the curve shows as `unsupported`,
+  which is the signal that the YAML, not the CLI, owns it. A JSON `--value` must contain **no spaces**
+  (the CLI splits on whitespace), and object references are `{\"guid\":…,\"fileId\":…}`.
+
+## G-020: A sign-only ground rule eats a launch on its first ticks
+- **Status:** Recorded 2026-11-20 (D-030)
+- **What:** "the ground absorbs vertical when it points down" looks honest, and kills every timed launch.
+  The grounded state is a **negative rest value** (`GroundedGravity = -2`), so a launch's first ticks read
+  negative: `2000 N / 80 kg = 25 m/s²` against `19.62` is `+0.017 m/s` per tick at editor dt, and the sign
+  rule resets it to `-2` every tick. Nothing accumulates, the jump is invisible, a 45° hydrant pushes only
+  X/Z. The first fix — "no absorption while any push points up" — was a **crutch**: it ignores force
+  magnitude, so a weak jet (300 N) is never absorbed and the body accelerates downward **through** the
+  ground.
+- **Rule:** The ground is a **normal force**: it can push only up, so it absorbs downward momentum **iff**
+  the live vertical force ≤ `Mass * Gravity`. Force > weight breaks the contact and the launch accumulates;
+  force < weight is cancelled, which is honest — a weak jet cannot lift you. Any rule about launch survival
+  must be a force comparison, never a sign, and a launch needs `Force` above `Mass·Gravity` to lift at all
+  (80 kg × 19.62 = **1569 N**; a 45° nozzle needs ≈ 2220 N).
+
+## G-021: A `[Serializable]` class array in a ScriptableObject is not authorable
+- **Status:** Recorded 2026-11-21 (D-031)
+- **What:** `PushPresets` held `PushPresetData[]` (a `[Serializable]` class), with a
+  `[CustomPropertyDrawer]` hiding the fields the authored `Kind` could not read. In the Inspector, adding an
+  element to a class array creates a **null slot**, and a drawer cannot instantiate the instance, so the
+  entry draws as an empty box and every change the designer made was lost. `PushKind` existed only to tell
+  the drawer which fields to hide — a flag whose job is to hide fields that should not exist.
+  **The same trap in the code:** the doc-comment promised `[SerializeReference]` and the field carried only
+  `[SerializeField]`, so the array stayed a class array: `SerializedObject.FindProperty("_presets")` returned
+  **null** (the code's `arr.arraySize` NRE'd), and `component get_fields` shows
+  `{"unsupported":"ManagedReference"}` only when the attribute is present. A comment that describes an
+  attribute which is not in the file is a claim, not a feature.
+- **Rule:** A list of variants is `[SerializeReference] PushPresetData[]` over an abstract base with concrete
+  subclasses: Unity's own Inspector draws a type dropdown, creates the instance, and shows only the fields
+  that type has, so field visibility needs no flag and no drawer. A `[CustomPropertyDrawer]` on a
+  serialized class is for **drawing**, never for making data exist.
+
+## G-022: A .cs file written outside Unity with `autoRefresh: disabled` is never imported
+- **Status:** Recorded 2026-11-21 (D-031)
+- **What:** A new `.cs` created by an external tool gets a `.meta` with `fileFormatVersion` + `guid` and no
+  `MonoImporter` block, and with `autoRefresh: disabled` nothing triggers `AssetDatabase.Refresh()`, so the
+  file is never imported as a script. The compile then reports the new type as missing
+  (`CS0246 … could not be found`) — and `script recompile` does not fix it, because it compiles against the
+  asset database, it does not refresh it.
+- **Rule:** Write the file **through Unity**: `unity cmd asset write_text --path … --contents $c --confirm
+  true` (LF-only content) — Unity imports it, generates the proper `MonoImporter` `.meta`, and the type
+  compiles. Do not hand-write `.meta` files.

@@ -23,11 +23,13 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   `GraphicsSettings.asset` has no fallback. A web build renders magenta while the editor looks fine
   (`m_CurrentQuality: 1`). Fix: give WebGL a level pointing at `Web_RPAsset`, then re-cut the levels for
   web (G-010, D-009). **Every web measurement is worthless until this is done.**
-- [ ] **B-003** `Open` — **the push channel never saturates.** `PlayerMotionTests.ContinuousSpray_
-  Saturates_WithoutStackingPushes` fails at `PlayerMotionTests.cs:234`: *"the shove must converge, not
-  keep growing (early 6.556155, late 7.865624)"*. `MaxPushSpeed` is authored but never clamped in
-  `PlayerMotion`. Repro: `unity cmd test run --mode editor` (synchronous, EditMode, no scene load),
-  result `1 of 19 failed` (deterministic, 0.006 s).
+- [x] **B-003** `Verified 2026-11-20` — **the spray-saturation test was unpassable by construction.**
+  `MaxPushSpeed` **was** clamped all along (`ClampPushVelocity`); the bug was the assertion:
+  `meanLate - meanEarly < 0.1` compares the first second of an exponential ramp (τ = 1/AirDrag = 2 s)
+  against the asymptote, so it fails at any τ; and the cap (12) sat above the force/drag equilibrium (8),
+  so the clamp was never exercised. Fixed in D-027: convergence asserted analytically (the late window on
+  the equilibrium, the series monotone, the plateau inside 3τ) and a second test with the equilibrium above
+  the cap. Repro: `unity cmd test run --mode editor` → **20 tests, 20 passed**, 0.15 s.
 - [ ] **B-004** `Open` — **`PlayerMotor` is attached to nothing.** The scene has no `Player` GameObject
   (`unity cmd gameobject find --type PlayerMotor` → null), so nothing moves in Play Mode. The tick runs
   (`Bootstrapper` is on `=== System`), the domain computes velocity, no shell consumes it. Same work as
@@ -40,12 +42,79 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 
 ## Now (blocking, in this order)
 
-- [ ] **B-004:** create the `Player` GameObject under `=== World/GrayBox Level` near `Player Spawn
-  Point` (world 2.84, 0, 7.78), attach `PlayerMotor` + `CharacterController`, save the scene.
+- [ ] **B-004:** `ResourceSpawner.SpawnPlayer()` instantiates `Player.prefab` at the prefab's own origin
+  (0,0,0) and ignores `/=== World/Player Spawn Point` (world 2.84, 0, 7.78), so the player starts 2.5 m
+  from the hydrant and never touches its trigger. Fix: place the clone at the spawn point (the spawner owns
+  the position, the prefab keeps its origin). Measured 2026-11-20: `pos=(0.00, 0.00, 0.00)` at play start.
 - [x] 2026-11-20 — **Suite made EditMode** (`includePlatforms: ["Editor"]` in
   `FlameNBlame.Tests.asmdef`): `unity cmd test run --mode editor` → **19 tests, 18 passed, 1 failed**
   (B-003), synchronous, no scene load, ~0.11 s (D-026).
-- [ ] **B-003:** clamp the push channel at `MaxPushSpeed` in `PlayerMotion`, re-run the suite.
+- [x] 2026-11-20 — **Simulation fixed (D-027)**: the push channel is horizontal only, all vertical
+  momentum (gravity + launch) lives in one channel guarded by a launch state, a wall absorbs the push
+  along the **contact normal** (the shell reports it from `OnControllerColliderHit`), and the saturation
+  test is analytic. `unity cmd test run --mode editor` → **20 tests, 20 passed**, 0.15 s.
+- [x] 2026-11-20 — **Push API reshaped (D-028)**: direction is a **Vector3 from the source**
+  (`PushDirection.forward`), the envelope is **one scalar curve**, two DTOs (`ImpulsePresetData`,
+  `SustainedPresetData`) with two entry points, all presets in `Push Presets.asset` keyed by `PushType`,
+  and ground absorption is directional (vertical **down** only), so no launch flag is stored.
+  `unity cmd test run --mode editor` → **19 tests, 19 passed** (T9 deleted with its rule, the jump suite is
+  now 7 timed-launch tests).
+- [x] 2026-11-20 — **One preset list** (D-029): `PushPresetData{Type, Name, Kind, Force, Curve, Duration}`
+  in a single `_presets` array keyed by `PushType`, read as `IPushPresets.PresetOf(PushType)`; `PushKind`
+  returns as the **authoring switch** (the designer picks Impulse/Sustained, the code never infers it), and
+  `PushPresetDrawer` (editor-only adapter) hides Curve/Duration for an Impulse and labels Force `N·s` vs
+  `N`. The two DTOs are deleted, the asset re-authored as one list, tests re-signed → **19/19**.
+- [x] 2026-11-20 — **Ground absorption is a normal force** (D-030, G-020): the sign-only rule ate every
+  launch, because the grounded rest value is **negative** — a launch's first ticks read downward and the
+  ground reset them. Now the ground absorbs downward vertical **iff** the live vertical force ≤
+  `Mass·Gravity`. The first fix (a force-blind "no absorption while a push points up") was a **crutch** and
+  was replaced by the force rule. **19/19**.
+- [x] 2026-11-20 — **Reactive-first + the crutch rule** written into ARCHITECTURE (§Reactive first,
+  §Fixing a bug): events over polls (a poll needs a stated reason), a domain crutch only in sketches with a
+  TODO line. The polling idea for the hydrant sensor was rejected — `OnTriggerEnter` works and stays.
+- [x] 2026-11-21 — **The preset list is `[SerializeReference]`** (D-031, G-021, G-022): a
+  `[Serializable]` class array gave null slots the Inspector could not fill, so every design change was
+  lost. Now the base `PushPresetData{Type, Name}` is abstract with concrete `ImpulsePresetData{Force}`
+  and `SustainedPresetData{Force, Curve, Duration}` — **the DTO's type is the shape**, so an Impulse has no
+  Duration and no curve fields to hide; `PushKind` and `PushPresetDrawer` are deleted, the runtime branch is
+  `IsImpulse`, and the asset is authored through Unity (`script eval` filling
+  `managedReferenceValue`), not hand-written YAML. The user confirms the jump and the hydrant both push up.
+- [x] 2026-11-21 — **`Name` is gone from the preset** (D-032): the base `PushPresetData` holds `Type` only;
+  nothing in the code read a label, and `PresetOf(PushType)` is the only lookup. The asset is re-authored
+  without `_name`, numbers unchanged; the unit stays in the `[Tooltip]`. **19/19**.
+- [x] 2026-11-21 — **No parameter sweeps for preset numbers** (D-032, ARCHITECTURE §Fixing a bug): numbers
+  move from the user playing the mechanic (the `[v]` log is read after), the standing gate is the one suite
+  run. The user's rule: sweeping values through tests is "very time consuming" and answers nothing about feel.
+- [x] 2026-11-21 — **Dead surface deleted** (D-033): `ApplyImpulse`/`ApplySustained` → one
+  `PlayerMotion.ApplyPush`; `LiveVerticalForce()` made private; `IPushPreset` gains `Force` + `IsImpulse`;
+  `PushType` keeps the 4 sources that exist (`DebrisShove`, `FireBlast`, `HydrantBurst`, `SprayPuff` gone,
+  indices of the kept four unchanged); `BurnableSystem` + `Burnable` deleted, `IBurnable` kept as the Phase 1
+  contract; the `[v]` diagnostic log leaves `PlayerMotor`. **19/19**.
+- [ ] **Launch-survives-ground test** (with the feel pass, D-026): a weak jet (300 N, < `Mass·Gravity`)
+  stays absorbed on the ground; a 2000 N launch accumulates through grounded ticks and rises. Written only
+  after the user approves the feel.
+- [x] 2026-11-21 — **Authoring numbers for the feel pass** (the asset, not the code): a launch that lifts
+  needs `Force > Mass·Gravity` = **1569 N** (80 kg × 19.62), so a 45° nozzle needs ≈ 2220 N. Measured in
+  Play Mode: **Jump 2600 N** up, plateau-then-fade over 1 s → peak y **1.85 m**, `vert` 3.24 m/s, and it
+  re-arms on every landing while Space is held; **Hydrant 4500 N** (vertical 3182 N > weight) pushes the
+  player up and forward — the user sees both in the game. The old 1000 N hydrant was a shove by physics,
+  not by design.
+- [ ] **B-004** fix so the hydrant is reachable in a simulated run: the spawn point is 2.5 m from the
+  trigger, so key-simulation never enters it and the hydrant numbers can only be read by the user playing.
+- [x] 2026-11-20 — **Scene wired for D-028** (`component set_field`): `HydrantPush._presets` and
+  `Bootstrapper._pushPresetsConfig` → `Push Presets.asset`, `HydrantPush._pushType` → `HydrantPush`;
+  `scene save` done. The asset is authored by hand-written YAML (`asset write_text`) — 1000 N decaying
+  1→0 over 1 s, jump 2000 N plateau-then-fade over 1 s, spray 300 N flat over 0.1 s. The next step is the
+  first **feel check (a)** in Play Mode: the launch must follow `PushDirection.forward`, not the diagonal.
+- [x] 2026-11-20 — **Dead authoring surface cleaned** (the D-026 task, done ahead of the feel pass because
+  it was the cause of the diagonal launch, D-028): `PushApplication`/`Applies`, `PushKind`,
+  `Vector3CurveData` and `ActivePush.FiredImpulse` are deleted, and an Impulse DTO has no `Duration` and no
+  curve field to author.
+- [ ] **Push UseCases** (the sources side, D-027's second half): `PushDirector` in UseCases +
+  `HydrantLaunchUseCase` (timed, curve), `JumpUseCase` (timed, the gate moves here from `PlayerMotion`),
+  `SprayShoveUseCase`, `ImpulseKickUseCase` (one-shot, no duration). Each owns its trigger and conditions;
+  the simulation stays free of any player knowledge. Order in the updater: input → use cases → player →
+  shell.
 - [ ] **B-001:** fix the WebGL pipeline routing, then set up the WebGL module/build profile and make the
   first web build (the pipeline asset is still PC-tuned, so re-tune in the same pass — see below).
 - [ ] Add `Assets/_Core/Scenes/FnB_Gameplay.unity` to **Build Settings** (G-003) — on WebGL an empty
@@ -63,8 +132,9 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   contract as a new DECISIONS entry; until then nothing cites a "TDD §n" as if the file existed.
 - [ ] **Asmdef housekeeping:** drop the `CartoonFX` vendor-demo reference (an asset-store update can
   delete it and break our compile) and fix the `name` typo `FlameNBlame-asmdf` (G-001, D-014).
-- [ ] **`Player.prefab`:** remove the orphan `JumpPreset` block (D-017); decide the non-kinematic
-  Rigidbody sitting beside the `CharacterController` (delete it, or make it kinematic) and log the call.
+- [x] 2026-11-20 — **`Player.prefab`: the orphan `JumpPreset` block is gone** — `JumpPreset` left
+  `IGameSettings`/`GameSettings` with D-028, so nothing references it; verified by grep of the prefab. The
+  non-kinematic Rigidbody beside the `CharacterController` is still an open call.
 - [ ] **Delete the stray `Player.cs` at repo root** — an untracked copy of
   `Assets/_Core/Scripts/Domain/Player.cs` that does not compile on its own (G-006).
 - [ ] `Move Assets/_Core/Scripts/X Bot@Falling.fbx` to `Assets/_Core/Art/…` and rename per STYLE.md.
@@ -79,10 +149,9 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [x] 2026-11-20 — **Unity skills deleted** — `unity-cli` + `unity-pipeline` removed from
   `.opencode/skills/` and `~/.claude/skills/` (D-025). Nothing Unity generates in the repo now, so the
   git-tracking question is closed. Feel's 8 skill folders stay in `Assets/Feel/Skills/` (G-004).
-- [ ] **Open question, not decided: does `PushApplication`/`Applies` exist at all?** Its `GroundedOnly`
-  was used by exactly one preset (the jump), and D-021's gate makes that use redundant; the spray wants
-  `Always`. Cutting it removes an enum file, one DTO field, one branch in `TickPushes` and test T9 — the
-  requirement T9 asserts was invented, never stated by the design. Nothing cut yet.
+- [x] 2026-11-20 — **`PushApplication`/`Applies` decided: cut** (D-028). The question was closed with the
+  file deleted: `GroundedOnly` served only the jump, D-021's gate made it redundant, and the test T9 that
+  asserted it was the invented requirement. Nothing left to supersede.
 
 ## Phase 1 — base (pillar 1)
 

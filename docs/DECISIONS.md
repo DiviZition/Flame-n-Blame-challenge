@@ -40,18 +40,23 @@ no scene load (D-026).
 |---|---|---|---|
 | `` (root) | `Flame_n_Blame_Challenge` | Composition | `Bootstrapper.cs`, `GameUpdater.cs` |
 | `UseCases/` | `.UseCases` | Application | `GamePlaySession.cs` |
-| `Domain/` | `.Domain` | Domain | `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushPresetData`, `PushType`, `PushKind`, `PushApplication`, `Vector3CurveData` |
-| `InterfaceAdapters/` | `.Adapters` | Adapters | ports `IUpdatable`, `IPlayerInput`, `IGameSettings`; `PlayerInputMain`, `GameSettings` + `Game Settings.asset`, `PlayerMotor`, `HydrantPush` |
+| `Domain/` | `.Domain` | Domain | `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData` |
+| `InterfaceAdapters/` | `.Adapters` | Adapters | ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings` + `Game Settings.asset`, `PushPresets` + `Push Presets.asset`, `ResourceSpawner` + `ResourcesProvider` + `Resources.asset`, `PlayerMotor`, `HydrantPush` |
 
 `Scripts/Unity/` and `Scripts/Application/` were deleted (2026-11-19, D-012). `HydrantPush` moved with
 its `.meta` (GUID `75c4001556e8f7e47aca53aa50ef5170`) — that GUID is what the scene binds to.
 
 **Who talks to what:** `Bootstrapper` (one `Update()`) → `GameUpdater` → registered `IUpdatable` in
 registration order `PlayerInputMain` → `Player` → `PlayerMotor`. `Player` composes
-`PlayerMotion(PlayerMovement, IGameSettings)`, exposes `Velocity`, forwards `ReceivePush` and
-`ReportContact`. Shells: `PlayerMotor` (`Move(Velocity*dt)`, reports `CollisionFlags.Sides` +
-`isGrounded`), `HydrantPush` (trigger → `ApplyForce(preset, nozzle rotation)`). A source decides
-**whether** to fire; `PlayerMotion` decides what a fired push does (D-016, D-021).
+`PlayerMotion(PlayerMovement, IGameSettings, IPushPresets)`, exposes `Velocity`, forwards
+`ReceivePush(preset, direction)` (two overloads: Impulse, Sustained) and `ReportContact(grounded, normal)`.
+Shells: `PlayerMotor` (`Move(Velocity*dt)`, reports `isGrounded` and the contact normal from Unity's
+`OnControllerColliderHit`, forwards `ApplyForce(preset, direction)`), `HydrantPush` (trigger →
+`ApplyForce(preset, PushDirection.forward)`). A source decides **whether** to fire; `PlayerMotion` decides
+what a fired push does (D-016, D-021). `PlayerMotion`'s channels: **horizontal** `ControlVelocity` (input) +
+`PushVelocity` (shove), and **vertical** `VerticalVelocity` (gravity + every launch); the ground absorbs
+vertical **only when it points down**, so a launch that is strong enough to rise accumulates (D-028).
+Presets are authored in `Push Presets.asset`, keyed by `PushType` (D-028).
 
 **Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` (GUID
 `40c42f9779f68674690ed56e87150acf`) + Main Camera (Camera + CinemachineBrain); `=== World` →
@@ -381,4 +386,251 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
 - **Consequences:** `CLAUDE.md`'s "Current state of the code" section is gone: state moves to
   DECISIONS. Bugs are tracked by the same checklist mechanism as tasks, so a bug is done when its test
   passes, not when it is written. `README.md`, `STYLE.md §Docs` and `CLAUDE.md §Docs` routing lines are
-  rewritten to match. `docs/` stays untracked (TODO) — the doc cleanup is one commit.
+  rewritten to match. `docs/` stays untracked (TODO) - the doc cleanup is one commit.
+
+## D-027: Simulation split — horizontal shove channel + vertical launch channel, contact by normal
+- **Date:** 2026-11-20
+- **Status:** Accepted (refines D-016's channel model and D-020's absorption rules; the step order of D-016
+  stands; supersedes the "`CollisionFlags.Sides` zeroes the pushed axes" clause; D-021's jump gate stays
+  in `PlayerMotion` for now — moving it to a UseCase is the second half of this decision, not done yet)
+- **Context:** An audit of the simulation found two structural defects and one test-design defect.
+  **Vertical launches lived in the push channel**, which the ground zeroes every grounded tick, so a
+  *timed* launch (a 2 s hydrant curve, a 0.5 s jump curve) accumulates nothing — the ground eats it tick
+  by tick; and the B-003 test was unpassable by construction: `meanLate - meanEarly < 0.1` compares the
+  first second of an exponential ramp (τ = 1/AirDrag = 2 s) against the asymptote, which always differs,
+  while the cap (12) sat above the force/drag equilibrium (8), so the clamp that **was** implemented was
+  never exercised. **`CollisionFlags.Sides` carries no axis**, so wall absorption zeroed both X and Z:
+  sliding along a wall stopped the player dead.
+- **Decision:**
+  1. The push channel is **horizontal only**. All vertical momentum — gravity, terminal velocity, and the
+     vertical part of every launch — lives in the vertical channel. A push's delta is split on entry.
+  2. A **launch state**: any upward delta arms `IsLaunched`; the ground may reset vertical momentum only
+     when grounded **and not launched**; the landing that absorbs a launch ends it. This is what makes a
+     timed force physically meaningful.
+  3. The shell reports **the contact normal** (`ReportContact(grounded, Vector3 normal)`), taken from
+     Unity's `OnControllerColliderHit`, which `Move` fires synchronously inside itself. A wall absorbs the
+     push component **along the normal**; the component parallel to the surface is kept. A normal with
+     y < 0.5 is a wall, so a walkable slope is not treated as one.
+  4. **Test expectations become analytic**: convergence is asserted as "the late window sits on the
+     force/drag equilibrium, the series is monotone, the plateau is reached inside 3τ", and saturation is
+     asserted by a second scenario where the equilibrium is **above** the cap.
+- **Why:** A model where a timer, a channel and the ground all fight for the same vector cannot express
+  "shove me for 2 seconds" — the accumulation is the point, and the ground cancels it. `Sides` is a
+  boolean, so any rule built on it is guesswork about which axis stopped you. An absolute convergence
+  threshold is unpassable at any τ: exponential ramps approach asymptotically by definition, so the
+  honest assertion is about the asymptote, not about a difference of two windows.
+- **Consequences:** The suite is **20 tests, all passing** (`unity cmd test run --mode editor`, 0.15 s).
+  The jump tests read `VerticalVelocity`, not `PushVelocity.y`, and run with gravity off so the launch is
+  a clean `Force/Mass`. `PlayerMotor` gains `OnControllerColliderHit` (a Unity callback on the shell, not
+  a physics query, so the Domain boundary holds). B-003 is `Verified`. The authoring surface for
+  Impulse presets (`Duration`, curve past t=0, `Applies`, `FiredImpulse`) stays in the code, dead, until
+  the feel pass - the second half of this decision (`PushDirector` + the four UseCases, the jump gate
+  leaving `PlayerMotion`) is the next task.
+
+## D-028: Push DTO split by force shape, direction as a Vector3, presets in one asset
+- **Date:** 2026-11-20
+- **Status:** Accepted (deletes the push DTO surface of D-016/D-020: `PushPresetData`, `PushKind`,
+  `PushApplication`, `Vector3CurveData`; supersedes D-027's stored launch state; the step order, the
+  channels, the contact normal, the analytic tests and D-021's jump gate in `PlayerMotion` all stand)
+- **Context:** The hydrant launched the player in a direction nobody had authored. Two independent causes:
+  **the API takes a Quaternion** (`ApplyForce(preset, _pushDirection.rotation)`) and the envelope
+  multiplies it, so with the authored empty X/Y/Z curves the envelope read as `(1,1,1)` and the launch ran
+  along the **diagonal** of the nozzle's space; and the authored preset was `Kind = Impulse`, whose
+  `Duration` and curve past t=0 are ignored, so the 2 s decay the author typed had no effect. Two Inspector
+  fields did nothing at all: `Applies` (dead since D-021's jump gate) and `ActivePush.FiredImpulse` (never
+  set). The user's UseCase examples (hydrant 1000 N decaying to 0 over 1 s, jump plateau 0.2 s then fade,
+  kick/spray as plain impulses) need per-shape parameter sets, and `Duration` is meaningless for an impulse.
+- **Decision:**
+  1. **Two DTOs, one per force shape:** `ImpulsePresetData {Type, Force (N·s)}` — no Duration, no curve,
+     because an impulse has nothing to time; `SustainedPresetData {Type, Force (N), Curve, Duration}`.
+     `PushKind` and `PushApplication` are deleted: the DTO's shape **is** the kind.
+  2. **Direction is a Vector3 handed over by the source** (`PushDirection.forward`), never a Quaternion.
+     **The envelope is one scalar `AnimationCurve`** (0..1 across the duration), never per-axis.
+     `Vector3CurveData` is deleted.
+  3. **Two entry points:** `PlayerMotion.ApplyImpulse(preset, direction)` and
+     `ApplySustained(preset, direction)`, forwarded by the `Player.ReceivePush` and `PlayerMotor.ApplyForce`
+     overloads. The direction is normalized on entry.
+  4. **All presets in one authored asset:** `Assets/_Core/Push Presets.asset` (`PushPresets :
+     ScriptableObject`), keyed by `PushType`, read through the `IPushPresets` port at the source's **firing**
+     moment, never per tick. `IGameSettings.JumpPreset` is gone; the jump preset lives in the asset like
+     every other push.
+  5. **Vertical absorption is directional, not a state:** the ground sets vertical to `GroundedGravity`
+     only when vertical is **downward**. A launch that rises is never eaten by the ground, so a timed force
+     accumulates; a force too weak to overcome gravity is absorbed, which is the physically honest case.
+     `IsLaunched => VerticalVelocity > 0` — a derived fact, no stored flag.
+- **Why:** A rotation times a curve is a direction the author cannot see, and a per-axis "flat" envelope is
+  a diagonal. Fields that mean nothing for their kind invite authoring numbers that do nothing — the hydrant
+  preset had a decay curve, a duration and a `GroundedOnly` flag, none of which an Impulse reads. Presets in
+  one asset keep the shape of one launch (Force, curve, Duration) in one place, so a source stores only the
+  key and the direction, and a designer tunes without opening the scene.
+- **Consequences:** `HydrantPush` stores `PushPresets` + `PushType` + the child Transform and forwards
+  `PushDirection.forward`. DTO fields are private `[SerializeField]` with read-only properties (a field
+  cannot implement an interface property), so tests build presets through constructors. The jump is now a
+  timed preset, so a jump that lifts needs `Force > Mass * Gravity` (80 · 19.62 = 1569 N) — the feel pass
+  tunes the asset, not the code. `GroundedOnly` is gone with its rule, so test T9 is deleted. The suite is
+  `unity cmd test run --mode editor` → **19 tests, 19 passed** (T9 deleted with its rule, the jump suite is
+  7 timed-launch tests). The suite is re-signed for the two entry points and `StubPresets`. G-018 records the
+  diagonal launch, G-019 the CLI limit that a serialized curve must be authored as YAML.
+
+## D-029: One preset list, `PushKind` as the authoring switch
+- **Date:** 2026-11-20
+- **Status:** Accepted (supersedes D-028's point 1 — the two DTOs; everything else of D-028 stands: the
+  Vector3 direction, the scalar envelope, the two entry points, the one asset, `IPushPresets`)
+- **Context:** The user's complaint about the authoring surface: "I can make a HydrantPush type version in
+  both: impulse, and sustained lists" — two lists keyed by `PushType` let one name be authored twice, with
+  nothing stopping the designer from picking the wrong list in the source. The requested shape: one list,
+  pick a name, then a type, and the Inspector shows the settings that type can read.
+- **Decision:**
+  1. **One DTO:** `PushPresetData {Type, Name, Kind, Force, Curve, Duration}`. `PushKind` returns as the
+     **authoring switch** — the designer picks Impulse or Sustained, the code never infers it.
+  2. **One list:** `PushPresets` holds a single `_presets` array keyed by `PushType` (the enum stays
+     load-bearing, 8 values), read as `IPushPresets.PresetOf(PushType)` — one lookup, one name, one preset.
+  3. **The Inspector hides what a kind cannot read:** `PushPresetDrawer`
+     (`[CustomPropertyDrawer(typeof(PushPresetData))]`, an editor-only adapter) draws Curve/Duration only
+     for Sustained and labels Force `N·s` for an Impulse, `N` for a Sustained. Field visibility is an
+     editor concern; the runtime branch lives in `TickPushes`, driven by the authored `Kind`.
+- **Why:** Two lists keyed by the same key is two sources of truth for one launch; a name chosen twice is a
+  bug that shows up as "the hydrant fired the wrong shape". Authoring the kind once, in the preset, makes
+  the runtime branch a read of an authored fact, and the drawer makes an unreadable field invisible instead
+  of a trap (G-018's lesson: fields a kind cannot read must not be authorable).
+- **Consequences:** `ImpulsePresetData` and `SustainedPresetData` are deleted; `Presets.Impulse`/
+  `Presets.Sustained` builders and `StubPresets.PresetOf` are re-signed to the single DTO. The asset is
+  re-authored as one list (`Push Presets.asset`, GUID unchanged, so the scene references survive):
+  HydrantPush Sustained 1000 N curve 1→0 dur 1 s, ExtinguisherShove Sustained 300 N flat dur 0.1 s,
+  PlayerJump Sustained 2000 N keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N·s. The
+  drawer is a shell in `InterfaceAdapters` — no domain file is editor-only.
+
+## D-030: The ground is a normal force; reactive facts stay reactive
+- **Date:** 2026-11-20
+- **Status:** Accepted (supersedes D-028's point 5 — the sign-only vertical rule; `IsLaunched` as a derived
+  fact, the wall rule, the channels, the step order and the analytic tests all stand)
+- **Context:** After D-029 the jump was still invisible and the hydrant pushed only X/Z. The measured facts:
+  the jump request reaches the domain (`jump=True`), the push enters the active list (`pushes=1`), and the
+  ground resets vertical to `GroundedGravity` every tick — because the launch starts from the **negative**
+  grounded rest value, so the sign rule ate the launch on its first ticks (G-020). The first fix — "no
+  absorption while any push points up" — is a crutch: force-blind, so a 300 N jet is never absorbed and the
+  body accelerates down through the ground. The user's rule on the same session: reactivity is preferred,
+  polling only for a stated reason; and a fix must be judged from the outside for crutch-ness.
+- **Decision:**
+  1. **Vertical absorption is the normal force:** the ground sets vertical to `GroundedGravity` when
+     grounded, vertical is downward, **and** the live vertical force of the Sustained pushes is
+     ≤ `Mass * Gravity`. Above weight the contact is broken and the launch accumulates; below weight the
+     contact cancels the push, which is the honest case (a weak jet cannot lift you). Impulse pushes are
+     not in the force sum — an impulse lands as velocity, and the sign rule covers velocity.
+     `LiveVerticalForce()` is derived from the active list, never stored.
+  2. **Reactive-first** and **the crutch rule** are recorded in ARCHITECTURE.md §Reactive first and
+     §Fixing a bug: events over polls (a poll needs a stated reason), and a domain crutch is allowed only
+     in sketches with a TODO line.
+- **Why:** The sign is not the rule; the force behind the sign is. A ground that can push only up absorbs
+  downward momentum when it is not being exceeded — that is textbook normal force, and it makes both the
+  weak-jet case and the launch case fall out of one rule instead of two guards. Polling a sphere around a
+  sensor would have replaced a working `OnTriggerEnter` with a per-tick query: the user is right that it is
+  over-engineering, and the push shell stays reactive.
+- **Consequences:** `RunningLaunch` is replaced by `LiveVerticalForce()`; `_mass` is read once in the
+  constructor (the inverse mass was already read there). Authoring consequence: a launch that lifts needs
+  `Force > Mass·Gravity` (80 · 19.62 = 1569 N; a nozzle at 45° needs ≈ 2220 N), so the hydrant at 1000 N is
+  a shove by design, not a launch. The suite stays **19/19 green** (`unity cmd test run --mode editor`); the
+  launch-survives-ground invariant is a test to write after the feel pass, together with the rest.
+
+## D-031: The preset list is `[SerializeReference]` - the DTO's type is its shape
+- **Date:** 2026-11-21
+- **Status:** Accepted (supersedes D-029's points 1 and 3 - the single DTO and `PushPresetDrawer`; the one
+  list, `IPushPresets`, `PresetOf`, the Vector3 direction, the scalar envelope, the two entry points and the
+  measured numbers all stand, and D-028's DTO split is restored)
+- **Context:** The authoring surface D-029 built does not work in the Inspector: `PushPresetData` is a
+  `[Serializable]` **class**, and adding an element to a class array gives a **null slot** that no drawer can
+  fill - the entry draws as an empty box and every number the designer typed was lost (G-021). The user asked
+  for `[SerializeReference]` ("a list where the entries are objects of different types") and offered a
+  drawer-with-flags approach as the fallback. A flag whose only job is to hide fields a shape cannot read is
+  the crutch D-028 had already named.
+- **Decision:**
+  1. **The base is abstract:** `PushPresetData {Type, Name}` with abstract `Force` and abstract
+     `IsImpulse`; `ImpulsePresetData {Force}` (N*s, **no** Duration and **no** curve fields at all) and
+     `SustainedPresetData {Force, Curve, Duration}` (N, envelope, duration). The shape is the **type** of the
+     DTO, never an authored flag.
+  2. **The list is `[SerializeField, SerializeReference] PushPresetData[]`** in `PushPresets`: Unity's
+     Inspector draws a concrete-type dropdown per entry, instantiates the instance itself and shows exactly
+     the fields the chosen type has. `PushKind` and `PushPresetDrawer` are deleted. The drawer's unit labels
+     (`N·s` vs `N`) move to `[Tooltip]` on each authored field, so the Inspector states the unit without a
+     drawer. The attribute must be **in the file** — a doc-comment that promises it is not the feature
+     (G-021).
+  3. **The runtime branch is a type check:** `TickPushes` asks `IsImpulse` and casts to
+     `SustainedPresetData`; `EnvelopeAt` moves from `PlayerMotion` to the DTO that owns the curve.
+  4. **The asset is authored through Unity** (`script eval` writing `managedReferenceValue`, then
+     `ApplyModifiedProperties` + `SetDirty`), never as hand-written YAML: a SerializeReference block needs
+     `typeInfo` and `fileID`s that Unity generates. Numbers stay as measured: HydrantPush Sustained **4500 N**
+     curve 1->0 dur 1 s, ExtinguisherShove Sustained 300 N flat dur 0.1 s, PlayerJump Sustained **2600 N**
+     keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N*s.
+- **Why:** A list of variants is data, and the Inspector is the author's interface: data that cannot be
+  created there makes the design unusable, however correct the code is. SerializeReference makes Unity
+  instantiate what the author picks, so field visibility stops being a rule in code and becomes a fact of the
+  type - an Impulse has no Duration to hide, because it has no Duration. The builders the tests use
+  (`Presets.Impulse` / `Presets.Sustained`) return these same classes, so the asset and the tests author one
+  shape.
+- **Consequences:** `PushKind.cs` and `PushPresetDrawer.cs` are deleted with
+  `unity cmd asset delete --asset <path> --confirm true`; `Presets.cs`, `StubPresets.cs`, `PlayerMotionTests`
+  and `PlayerJumpTests` are re-typed to the concrete DTOs. New `.cs` files must be written **through Unity**
+  (`asset write_text`): with `autoRefresh: disabled` an external file is never imported as a script and the
+  compile reports `CS0246` (G-022). The asset's GUID is unchanged, so the scene references survive; the gate
+  after the change is `script recompile` → `up_to_date` and `test run --mode editor` → **19/19**.
+
+## D-032: A preset has no Name - `Type` is the whole authored identity
+- **Date:** 2026-11-21
+- **Status:** Accepted (supersedes D-031's `Name` field and D-029's `Name` label; the rest of both entries
+  stands: `[SerializeReference]`, the two DTOs, `PresetOf`, the unit tooltips, the measured numbers)
+- **Context:** The user's read of the Inspector: "There is an unnecessary field: Name. Let's use only Type and
+  remove the name." The check that makes it true: `PresetOf(PushType)` is the only lookup in the code, nothing
+  prints a preset's `Name`, and the scene's sources store `PushType` - so the label was a second identity for
+  one entry, authored by hand and read by nobody.
+- **Decision:**
+  1. **`PushPresetData` holds `Type` only.** `Name` and its tooltip are deleted; the constructors take
+     `(PushType type)` and the DTOs take their own fields.
+  2. **The asset is re-authored through Unity** with the new constructors, so the `_name` keys leave the YAML.
+     Numbers unchanged: HydrantPush 4500 N curve 1->0 dur 1 s, ExtinguisherShove 300 N flat dur 0.1 s,
+     PlayerJump 2600 N keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N�s.
+  3. **No value tuning by test sweeps.** The gate is the one standing run (`script recompile` ->
+     `up_to_date`, `test run --mode editor` -> 19/19). Preset numbers move from the **user's play** (the
+     `[v]` log is read afterwards), never from a search over parameters: the user's measurement is that
+     "running many tests to find the best preset values is very time consuming".
+- **Why:** A field that no code reads is authoring overhead, and in a keyed list it invites the designer to
+  believe two entries can share a name while the lookup uses the key. The name of a push is already the
+  `PushType` value the source stores.
+- **Consequences:** `Presets.Impulse` / `Presets.Sustained` builders lose the `type.ToString()` name argument;
+  the asset's YAML shrinks one line per entry. The suite stays **19/19** (`unity cmd test run --mode editor`)
+  on the same day, and the feel numbers keep coming from the user playing, not from parameter search.
+
+## D-033: Dead surface is deleted - one push entry point, `IPushPreset` with its facts, 4 `PushType` values
+- **Date:** 2026-11-21
+- **Status:** Accepted (the user's rule: "Clean all the dead fields if they present". Retires D-029's two
+  shape-named entry points, the empty `IPushPreset`, four `PushType` values with no source, the `Burnable`
+  body, and the temporary `[v]` diagnostic log. The DTO shapes, `PresetOf`, `[SerializeReference]` and the
+  authored numbers of D-031/D-032 stand.)
+- **Context:** After the preset authoring worked, the whole surface was read through once: every
+  `[SerializeField]`, every private field and every public accessor in `_Core` was checked for a reader. The
+  GameSettings numbers all have one. What did not: `ApplyImpulse` and `ApplySustained` (one body, two names),
+  `LiveVerticalForce` (public, read only by `ApplyContact`), `IPushPreset` (declared `Type` only, and no code
+  was ever typed as it), four enum values nothing fires, `BurnableSystem` (an empty class) with `Burnable`
+  (a private list nothing touched and fields with no readers), and the `[v]` log in `PlayerMotor`, whose job
+  was the feel measurements.
+- **Decision:**
+  1. **`PlayerMotion.ApplyPush(preset, worldDirection)` is the single entry point.** The shape is the DTO's
+     type (D-031), so an entry point cannot branch: two methods named by shape are a second name for one
+     behavior. `Player.ReceivePush` forwards to it; `PlayerMotor.ApplyForce` forwards to that.
+  2. **`LiveVerticalForce()` is private.** Its only reader is the ground's normal-force rule; the `[v]` log
+     that read it for the feel pass is removed, and the numbers it gave are already in `TODO.md`.
+  3. **`IPushPreset` gains `Force` and `IsImpulse`.** The interface previously promised only `Type` and no
+     consumer used it, so it is now exactly the three facts `TickPushes` and the ground's rule read.
+  4. **`PushType` keeps `HydrantPush`, `ExtinguisherShove`, `PlayerJump`, `ExtinguisherKick`.**
+     `DebrisShove`, `FireBlast`, `HydrantBurst`, `SprayPuff` are deleted: no source fires them and no asset
+     entry is keyed by them. The indices of the four kept values are unchanged, so the `_type` ints already
+     authored in `Push Presets.asset` survive, and the cap tests, which use `(PushType)i` casts for 9 pushes,
+     are unaffected.
+  5. **`BurnableSystem` and `Burnable` are deleted; `IBurnable` stays** as the authored contract of D-008
+     pillar 1 (the implementation is the Phase 1 work in `TODO.md`). A class whose fields are read by nobody
+     is authored overhead.
+- **Why:** A field with no reader tells the designer it is read, and a second name for one behavior is a
+  second rule. Deleting them costs nothing and removes the claim.
+- **Consequences:** `PlayerMotionTests` call `ApplyPush` (11 sites), the suite stays **19/19**
+  (`unity cmd test run --mode editor`), `PlayerMotor` is log-free, and the enum's named values are the sources
+  that exist. The asset's authored jump is the **user's** tuning (an Impulse 700 N�s in the Inspector), not a
+  number I re-wrote.
