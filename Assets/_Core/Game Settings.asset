@@ -15,94 +15,16 @@ MonoBehaviour:
   <PlayerSpeedBase>k__BackingField: 5
   <PlayerSpeedSprint>k__BackingField: 8
   <PlayerSpeedInAir>k__BackingField: 2
-  <LookSensitivity>k__BackingField: 0.17
-  <LookPitchBounds>k__BackingField: {x: -75, y: 45}
+  <GroundAcceleration>k__BackingField: 20
+  <AirAcceleration>k__BackingField: 6
+  <GroundFriction>k__BackingField: 12
   <Mass>k__BackingField: 80
   <Gravity>k__BackingField: 19.62
   <GroundedGravity>k__BackingField: -2
   <TerminalVelocity>k__BackingField: 40
-  <GroundAcceleration>k__BackingField: 20
-  <AirAcceleration>k__BackingField: 6
-  <GroundFriction>k__BackingField: 12
+  <JumpCarry>k__BackingField: 1
   <GroundDrag>k__BackingField: 4
   <AirDrag>k__BackingField: 0.5
   <MaxPushSpeed>k__BackingField: 12
-  <JumpPreset>k__BackingField:
-    Type: 2
-    Kind: 0
-    Applies: 1
-    Force: 1000
-    Curve:
-      X:
-        serializedVersion: 2
-        m_Curve:
-        - serializedVersion: 3
-          time: 0
-          value: 0
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0.33333334
-        - serializedVersion: 3
-          time: 1
-          value: 0
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-      Y:
-        serializedVersion: 2
-        m_Curve:
-        - serializedVersion: 3
-          time: 0
-          value: 1
-          inSlope: 254.64636
-          outSlope: 254.64636
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0.004166667
-        - serializedVersion: 3
-          time: 1
-          value: 0
-          inSlope: -1
-          outSlope: -1
-          tangentMode: 34
-          weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-      Z:
-        serializedVersion: 2
-        m_Curve:
-        - serializedVersion: 3
-          time: 0
-          value: 0
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 34
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0.33333334
-        - serializedVersion: 3
-          time: 1
-          value: 0
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 34
-          weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0
-        m_PreInfinity: 2
-        m_PostInfinity: 2
-        m_RotationOrder: 4
-    Duration: 2
+  <LookSensitivity>k__BackingField: 0.17
+  <LookPitchBounds>k__BackingField: {x: -75, y: 45}

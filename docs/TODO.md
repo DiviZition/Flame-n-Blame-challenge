@@ -93,6 +93,12 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [ ] **Launch-survives-ground test** (with the feel pass, D-026): a weak jet (300 N, < `Mass·Gravity`)
   stays absorbed on the ground; a 2000 N launch accumulates through grounded ticks and rises. Written only
   after the user approves the feel.
+- [x] 2026-11-22 — **`GameSettings` Inspector grouped, Odin not taken** (D-035): Unity `[field: Header]` +
+  `[Tooltip]` in `GameSettings.cs` (Locomotion / Steering / Body & gravity / Jump / Push channel / Look),
+  every number has its unit and what it decides. The dead `<JumpPreset>` block (78 lines, the type is gone
+  since D-029) was deleted from `Game Settings.asset` through Unity; `component get_fields` reads back all
+  16 values, the user's `LookPitchBounds` -75/45 intact. No runtime cost (Unity attributes), and the web cost
+  of Odin (a 720 KB runtime chain) stays unmeasurable until B-001 is fixed. **24/24** (no logic touched).
 - [x] 2026-11-22 — **Jump forward carry** (D-034): the jump is the preset **straight up** +
   `JumpCarry × ControlVelocity` in the push channel — a run-up reaches further, the height is untouched,
   standing carries exactly zero (the draft's 0/0 = NaN swallowed the jump, G-023). `JumpCarry` is authored in

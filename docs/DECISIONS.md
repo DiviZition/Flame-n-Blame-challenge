@@ -675,3 +675,36 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
   carries zero, `PushVelocity == control * JumpCarry` on the jump tick, walk 5 vs sprint 8, a carry above
   `MaxPushSpeed` saturates at the cap, and the carry outlives the jump tick decaying only by `AirDrag` —
   `unity cmd test run --mode editor` → **24 tests, 24 passed**.
+
+## D-035: `GameSettings` is grouped with Unity headers, not Odin
+- **Date:** 2026-11-22
+- **Status:** Accepted (the user's call: "for now, no Odin"). The Inspector ordering is authored surface, so
+  it lives in `GameSettings.cs`; the numbers and `IGameSettings` are unchanged.
+- **Context:** 16 authored numbers in one flat list became hard to navigate. The measured facts about Odin
+  4.1.0 in this project: the editor assemblies (`OdinInspector.Editor` 3509 KB, `Utilities.Editor` 1221 KB,
+  `Reflection.Editor` 59 KB) are excluded from players and already sit in the editor, so they cost nothing
+  new; the runtime chain a reference to `Sirenix.OdinInspector.Attributes` pulls in is
+  112 + 418 + 172 + 18 ≈ **720 KB** into the WebGL assembly graph, and its real shipping size after IL2CPP
+  full stripping **cannot be measured today** — there is no WebGL build (B-001, D-019), and the rule says a
+  measurement happens in a web build (D-007, G-010). Odin's `[Group]`/`[Header]` live in that runtime
+  assembly (the field must serialize them), so "the grouping is editor-only" is not available with Odin.
+  Unity's own `[field: Header]` and `[field: Tooltip]` need no package at all, so nothing ships.
+- **Decision:**
+  1. **Five groups in the file, in the order a designer tunes them:** Locomotion (3 speeds), Steering
+     (accelerations + friction), Body & gravity (Mass, Gravity, GroundedGravity, TerminalVelocity),
+     Jump (`JumpCarry` — the launch itself stays in `Push Presets.asset`), Push channel (GroundDrag,
+     AirDrag, MaxPushSpeed), Look. Every number carries a `[Tooltip]` with its unit and what it decides,
+     so the Inspector says what the number does.
+  2. **The dead `<JumpPreset>` block (78 lines) is deleted from `Game Settings.asset`** — the type was
+     removed by D-029, so the block was data with no reader. Written through Unity
+     (`unity cmd asset write_text`), so the asset re-imported; `component get_fields` read back every number
+     including the user's tuned `LookPitchBounds` (-75/45), and the asset's GUID is unchanged, so scene
+     references survive.
+- **Why:** A header is a fact of the Inspector, and Unity's own attributes cost nothing in a WebGL build;
+  the shipping target is WebGL (D-007), so a 720 KB unmeasurable cost buys only foldouts. Odin is not banned
+  — if a foldout UI is ever wanted, the honest path is a `CustomEditor` in `_Core/Editor` (zero build weight),
+  and a vendor reference in `FlameNBlame.asmdef` is the G-001 trap.
+- **Consequences:** `unity cmd script recompile` → `compilationFailed: false`, `console get` → 0 errors,
+  `unity cmd test run --mode editor` → **24/24** (no logic touched), `component get_fields` on the asset →
+  16 fields, no `JumpPreset`. Reordering the properties changes the Inspector order only: Unity serializes
+  auto-properties by backing-field name, so every authored value survives.
