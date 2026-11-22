@@ -95,8 +95,9 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   after the user approves the feel.
 - [ ] **Feel pass on the counter-run** (D-036): play a hydrant shove + run against it, and a shove + run
   with it. The rule reuses `GroundFriction` (12/s), so the absorption rate is not authored separately; if the
-  feel wants it its own knob, add `CounterAbsorb` to `IGameSettings`/`GameSettings` and the test is re-run,
-  not re-argued (D-026).
+  feel wants it its own knob, add `CounterAbsorb` to `IPhysicsSettings`/`PhysicsSettings` and the test is re-run,
+  not re-argued (D-026). **Superseded by the friction merge below** — if the merge lands, the counter-run has one
+  rate and this line's knob question closes.
 - [x] 2026-11-22 — **Ice fix: contact gives control authority over momentum** (D-036): in the air the
   component of `ControlVelocity` **along** a shove is removed every tick (running with a launch adds nothing,
   steering across keeps `PlayerSpeedInAir`); on the ground running **against** a shove eats it at
@@ -104,6 +105,19 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   nothing. The sign of `Dot(shoveAxis, desired)` is the whole rule; `GroundFriction` is reused, no new field.
   **T15a-T15c** (air clamp, steering across, the two decays) → **27 tests, 27 passed**; the 24 existing pass
   through the rule's early exits, so the suite is a witness, not a victim.
+- [x] 2026-11-22 — **Authored config split** (D-037): the 16 numbers left the single `GameSettings` screen.
+  `PhysicsSettings` + `Physics Settings.asset` = Mass, Gravity, GroundedGravity, TerminalVelocity,
+  `GroundFriction`, `GroundDrag`, `AirDrag`, `MaxPushSpeed`, `JumpCarry`; `PlayerControlSettings` +
+  `Player Control Settings.asset` = the 3 speeds, the 2 steering rates, `LookSensitivity`, `LookPitchBounds`;
+  `IGameSettings` is now `Physics` + `Control` with **no numbers of its own**, and `Game Settings.asset` is two
+  object slots. Ports follow readers: `PlayerLookRotator(input, control)`, `PlayerMovement(input, control, look)`,
+  `PlayerMotion(movement, physics, control, presets)`, `Player(input, physics, control, presets)`; `StubSettings`
+  is `StubPhysics` + `StubControl`. The physics port is **not** player-only (a debris piece or a burnable body
+  reads the same numbers), so the name has no `Player` prefix — a rename is one type, one asset, one field.
+  The user's tuned `GroundDrag` **8** and `LookPitchBounds` **-75/45** survived, written through Unity (the
+  `set_field` object-reference trap is G-024). `unity cmd script recompile` → 0 errors,
+  `unity cmd test run --mode editor` → **27 tests, 27 passed** — analytic expectations untouched, so the suite
+  is the gate for the move.
 - [x] 2026-11-22 — **`GameSettings` Inspector grouped, Odin not taken** (D-035): Unity `[field: Header]` +
   `[Tooltip]` in `GameSettings.cs` (Locomotion / Steering / Body & gravity / Jump / Push channel / Look),
   every number has its unit and what it decides. The dead `<JumpPreset>` block (78 lines, the type is gone
@@ -148,8 +162,16 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   flight at the reduced air speed; (e) a 0.1 s spray for 3 s **saturates**, not accelerates (B-003).
   **The tests for this mechanic are written after the user approves it** (D-026) — the push-model suite
   is edited along with the feel pass, not ahead of it.
-- [ ] **Re-tune `GroundDrag`** (authored 4, in `GameSettings` + `Game Settings.asset`): ~1 = a long skid,
-  past 8 = a hard stop; `GroundFriction` stays authored separately (D-020).
+- [ ] **Friction merge** (design agreed with the user 2026-11-22, code not written): **one authored ground rate**.
+  `GroundFriction` (μN/Mass, m/s²) applies to the **total** horizontal momentum — it stops the control when input
+  is released, eats a shove when the player runs against it, adds nothing when running with it. `GroundDrag`
+  (the user's tuned **8** in `Physics Settings.asset`) is deleted; `GroundAcceleration` becomes
+  `min(authored, GroundFriction)` (20 > 12 is unphysical — the legs cannot push harder than the ground's
+  reaction); `AbsorbCounterRun` folds into `ApplyDrag`, `ShoveAxis()` goes with it; `AirDrag` stays (no reaction
+  in the air, D-016). T13's decay rate changes (ground rate, not 4/s), T15c is re-signed, the 10
+  `_physics.GroundDrag = 0f` isolations in the tests go with the field. The user's rule for why: *"за трение с
+  поверхностью отвечал один параметр. Иначе это очень сложно настраивать, тестировать и вообще код становится
+  сложнее"* — the wall between the two rates was the ice (G-012, D-020, D-036).
 - [ ] **Recover the design contract.** `docs/TDD.md` + `docs/Preproduction.md` are not in the repo and
   the originals are gone, so the contract exists only as D-008 + `README.md`. Find them, or restate the
   contract as a new DECISIONS entry; until then nothing cites a "TDD §n" as if the file existed.

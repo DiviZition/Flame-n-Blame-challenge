@@ -1,4 +1,4 @@
-using Flame_n_Blame_Challenge.Domain;
+﻿using Flame_n_Blame_Challenge.Domain;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -19,7 +19,8 @@ namespace Flame_n_Blame_Challenge.Tests
         private const float Tolerance = 0.0001f;
         private const float LaunchTolerance = 0.2f;
 
-        private StubSettings _settings;
+        private StubPhysics _physics;
+        private StubControl _control;
         private StubPresets _presets;
         private StubInput _input;
         private Player _player;
@@ -30,7 +31,7 @@ namespace Flame_n_Blame_Challenge.Tests
             // The stub jump is Force 400 N, flat envelope, Duration 1 s; Mass 20 and Gravity 10 make the
             // launch (400/20 - 10) * 1 = 10 m/s, hand-checkable. Zero drags and GroundedGravity 0 keep the
             // vertical channel readable.
-            _settings = new StubSettings
+            _physics = new StubPhysics
             {
                 Gravity = 10f,
                 GroundedGravity = 0f,
@@ -38,9 +39,10 @@ namespace Flame_n_Blame_Challenge.Tests
                 GroundDrag = 0f,
                 MaxPushSpeed = 100f
             };
+            _control = new StubControl();
             _presets = new StubPresets();
             _input = new StubInput();
-            _player = new Player(_input, _settings, _presets);
+            _player = new Player(_input, _physics, _control, _presets);
         }
 
         private void Tick(int ticks, bool grounded)
@@ -66,7 +68,7 @@ namespace Flame_n_Blame_Challenge.Tests
         private float PresetLaunch()
         {
             SustainedPresetData jump = (SustainedPresetData)_presets.PresetOf(PushType.PlayerJump);
-            return jump.Force * jump.Duration / _settings.Mass - _settings.Gravity * jump.Duration;
+            return jump.Force * jump.Duration / _physics.Mass - _physics.Gravity * jump.Duration;
         }
 
         // T10a - a jump press in the air produces nothing.
@@ -141,7 +143,7 @@ namespace Flame_n_Blame_Challenge.Tests
 
             _input.IsJumping = false;
             Tick(1, true);
-            Assert.AreEqual(_settings.GroundedGravity - _settings.Gravity * Dt, _player.Motion.VerticalVelocity,
+            Assert.AreEqual(_physics.GroundedGravity - _physics.Gravity * Dt, _player.Motion.VerticalVelocity,
                 0.01f, "contact absorbs the launch momentum");
 
             _input.IsJumping = true;
@@ -174,7 +176,7 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void JumpStrengthIsAuthored_NotHardcoded()
         {
-            _settings.Gravity = 0f;
+            _physics.Gravity = 0f;
 
             PressAndFire();
             Tick(59, true);
@@ -183,7 +185,7 @@ namespace Flame_n_Blame_Challenge.Tests
             float firstForce = _presets.PresetOf(PushType.PlayerJump).Force;
 
             SetUp();
-            _settings.Gravity = 0f;
+            _physics.Gravity = 0f;
             _presets.Presets = new[] { Presets.Sustained(PushType.PlayerJump, firstForce * 2f, 1f) };
 
             PressAndFire();
@@ -199,15 +201,15 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void HeavierPlayerLaunchesLower_FromTheSamePreset()
         {
-            _settings.Gravity = 0f;
+            _physics.Gravity = 0f;
 
             PressAndFire();
             Tick(59, true);
             float light = _player.Motion.VerticalVelocity;
 
-            _settings.Mass *= 2f;
+            _physics.Mass *= 2f;
             _input = new StubInput();
-            _player = new Player(_input, _settings, _presets);
+            _player = new Player(_input, _physics, _control, _presets);
 
             PressAndFire();
             Tick(59, true);
@@ -231,7 +233,7 @@ namespace Flame_n_Blame_Challenge.Tests
         }
 
         // T14b - the rule D-034 chose: the player's own speed is carried into the push channel, and the
-        // vertical launch stays the preset's number. A tilt model fails the second assertion (√2 lower), a
+        // vertical launch stays the preset's number. A tilt model fails the second assertion (в€љ2 lower), a
         // ratio model fails the first (it carries proximity to the target speed, not speed).
         [Test]
         public void RunningJump_CarriesOwnSpeed_HeightIsUnchanged()
@@ -282,14 +284,14 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void JumpCarry_AboveTheCap_SaturatesAtMaxPushSpeed()
         {
-            _settings.MaxPushSpeed = 12f;
-            _settings.JumpCarry = 2f;
+            _physics.MaxPushSpeed = 12f;
+            _physics.JumpCarry = 2f;
             Rebuild();
 
             _input.InputDirection = new Vector2(1f, 0f);
             _input.IsRunning = true;
             Tick(60, true);
-            Assert.AreEqual(_settings.PlayerSpeedSprint, _player.Movement.DesiredVelocity.magnitude, Tolerance,
+            Assert.AreEqual(_control.PlayerSpeedSprint, _player.Movement.DesiredVelocity.magnitude, Tolerance,
                 "the run has reached the authored sprint speed");
 
             _input.IsJumping = true;
@@ -304,7 +306,7 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void JumpCarry_OutlivesTheJumpTick_AndDecaysOnlyByAirDrag()
         {
-            _settings.AirDrag = 0.5f;
+            _physics.AirDrag = 0.5f;
             Rebuild();
 
             _input.InputDirection = new Vector2(1f, 0f);
@@ -317,7 +319,7 @@ namespace Flame_n_Blame_Challenge.Tests
             const int flight = 60;
             Tick(flight, false);
 
-            float expected = carried * Mathf.Pow(1f - _settings.AirDrag * Dt, flight);
+            float expected = carried * Mathf.Pow(1f - _physics.AirDrag * Dt, flight);
             Assert.AreEqual(expected, _player.Motion.PushVelocity.x, 0.05f,
                 "the carry flies and decays by AirDrag alone");
             Assert.Greater(_player.Motion.VerticalVelocity, 0f, "the launch is still rising, so the flight is real");
@@ -328,7 +330,7 @@ namespace Flame_n_Blame_Challenge.Tests
         private void Rebuild()
         {
             _input = new StubInput();
-            _player = new Player(_input, _settings, _presets);
+            _player = new Player(_input, _physics, _control, _presets);
         }
     }
 }

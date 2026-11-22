@@ -227,3 +227,18 @@ changing an ID, a status or a Rule is not (D-024).
 - **Rule:** Every epsilon comparison is also a NaN swallow — the guard is a zero-guard, not a NaN-guard.
   Never divide by a live value: use an authored constant as the denominator, or multiply by a coefficient, so
   the degenerate case is **zero** (a no-op the model can see) and not NaN (a no-op nobody sees).
+
+## G-024: An object reference for `component set_field` is a plain path string, and the live asset object lags the file
+- **Status:** Recorded 2026-11-22 (D-037)
+- **What:** Setting a `ScriptableObject` reference on an asset: `--value '{"path":"Assets/…"}'` fails — the CLI
+  stringifies the JSON and looks for an asset called `Assets/{path:Assets/…}`. Passing the path as a plain
+  string (`--value "Assets/_Core/Physics Settings.asset"`) resolves. Second half: `asset write_text` writes the
+  YAML and imports it, but `component get_fields` on the asset can read back the reference as **empty** for
+  the next few calls — the loaded object in memory is not reloaded in the same dispatcher frame, so a
+  `get_fields` check right after `write_text` is not a witness of the file.
+- **Rule:** Two checks, and know which one you are reading: **the file** is verified with
+  `unity cmd asset read_text` (the YAML you wrote is what Unity imports), **the live object** with
+  `unity cmd component get_fields`. If the file has the reference and the object does not, set it with
+  `set_field --value "<path>"` (a plain string) and read `get_fields` again — `set_field` serializes the asset,
+  so the file stays consistent. References inside the YAML need the full form
+  `{fileID: 11400000, guid: <asset guid>, type: 3, classID: 114, script: {fileID: 11500000, guid: <script guid>, type: 3}}`.

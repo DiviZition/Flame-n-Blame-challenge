@@ -57,7 +57,8 @@ namespace Flame_n_Blame_Challenge.Domain
         private const float WallNormalMaxY = 0.5f;
 
         private readonly PlayerMovement _movement;
-        private readonly IGameSettings _settings;
+        private readonly IPhysicsSettings _physics;
+        private readonly IControlSettings _control;
         private readonly IPushPresets _presets;
         private readonly List<ActivePush> _activePushes = new(MaxSimultaneousPushes);
 
@@ -105,16 +106,18 @@ namespace Flame_n_Blame_Challenge.Domain
         public float VerticalVelocity => _verticalVelocity;
         public int ActivePushCount => _activePushes.Count;
 
-        public PlayerMotion(PlayerMovement movement, IGameSettings settings, IPushPresets presets)
+        public PlayerMotion(PlayerMovement movement, IPhysicsSettings physics, IControlSettings control,
+            IPushPresets presets)
         {
             _movement = movement;
-            _settings = settings;
+            _physics = physics;
+            _control = control;
             _presets = presets;
 
             // Authored numbers are read once, here: they come from an asset and do not change mid-session
             // (D-012). A test that wants another Mass builds a body with that Mass, it does not mutate a
             // live one. Guarded once, not per tick: Mass 0 authored must not produce infinity (T11).
-            _mass = Mathf.Max(settings.Mass, MassFloor);
+            _mass = Mathf.Max(physics.Mass, MassFloor);
             _inverseMass = 1f / _mass;
             IsGrounded = true;
         }
@@ -139,7 +142,7 @@ namespace Flame_n_Blame_Challenge.Domain
             // flight, the same rule as any shove (D-016, D-034).
             ApplyPush(_presets.PresetOf(PushType.PlayerJump), Vector3.up);
 
-            Vector3 carried = _controlVelocity * Mathf.Max(0f, _settings.JumpCarry);
+            Vector3 carried = _controlVelocity * Mathf.Max(0f, _physics.JumpCarry);
             if (carried.sqrMagnitude > 0.0001f)
                 AddPushDelta(carried);
         }
@@ -224,8 +227,8 @@ namespace Flame_n_Blame_Challenge.Domain
                 // starts from the grounded rest value, which is negative, so a sign-only rule resets it every
                 // tick and nothing ever accumulates (G-020). A force weaker than weight is cancelled by the
                 // contact, which is the honest case: a weak jet cannot lift you.
-                if (_verticalVelocity <= 0f && LiveVerticalForce() <= _mass * _settings.Gravity)
-                    _verticalVelocity = _settings.GroundedGravity;
+                if (_verticalVelocity <= 0f && LiveVerticalForce() <= _mass * _physics.Gravity)
+                    _verticalVelocity = _physics.GroundedGravity;
             }
             else
             {
@@ -258,8 +261,8 @@ namespace Flame_n_Blame_Challenge.Domain
 
         private void ApplyGravity(float deltaTime)
         {
-            _verticalVelocity -= _settings.Gravity * deltaTime;
-            _verticalVelocity = Mathf.Max(_verticalVelocity, -_settings.TerminalVelocity);
+            _verticalVelocity -= _physics.Gravity * deltaTime;
+            _verticalVelocity = Mathf.Max(_verticalVelocity, -_physics.TerminalVelocity);
         }
 
         private void TickPushes(float deltaTime)
@@ -308,9 +311,9 @@ namespace Flame_n_Blame_Challenge.Domain
 
             float approach;
             if (desired.sqrMagnitude < 0.0001f)
-                approach = IsGrounded ? _settings.GroundFriction : 0f;   // no friction in the air
+                approach = IsGrounded ? _physics.GroundFriction : 0f;   // no friction in the air
             else
-                approach = IsGrounded ? _settings.GroundAcceleration : _settings.AirAcceleration;
+                approach = IsGrounded ? _control.GroundAcceleration : _control.AirAcceleration;
 
             Vector3 steered = current + (desired - current) * Mathf.Clamp01(approach * deltaTime);
             _controlVelocity = new Vector3(steered.x, 0f, steered.z);
@@ -333,8 +336,8 @@ namespace Flame_n_Blame_Challenge.Domain
             // Drag is a horizontal-plane rule: the vertical channel is kept by gravity and terminal
             // velocity, and ground contact already owns vertical momentum.
             float retained = IsGrounded
-                ? Mathf.Max(0f, 1f - _settings.GroundDrag * deltaTime)
-                : Mathf.Max(0f, 1f - _settings.AirDrag * deltaTime);
+                ? Mathf.Max(0f, 1f - _physics.GroundDrag * deltaTime)
+                : Mathf.Max(0f, 1f - _physics.AirDrag * deltaTime);
 
             _pushVelocity.x *= retained;
             _pushVelocity.z *= retained;
@@ -363,7 +366,7 @@ namespace Flame_n_Blame_Challenge.Domain
                 return;   // with the shove: the speed stays the shove's
 
             float along = Vector3.Dot(_pushVelocity, shoveAxis);
-            _pushVelocity -= shoveAxis * (along * Mathf.Max(0f, 1f - _settings.GroundFriction * deltaTime));
+            _pushVelocity -= shoveAxis * (along * Mathf.Max(0f, 1f - _physics.GroundFriction * deltaTime));
         }
 
         /// The shove's direction on the horizontal plane, `Vector3.zero` when there is no momentum to
@@ -376,7 +379,7 @@ namespace Flame_n_Blame_Challenge.Domain
 
         private void ClampPushVelocity()
         {
-            float cap = _settings.MaxPushSpeed;
+            float cap = _physics.MaxPushSpeed;
             if (cap <= 0f)
                 return;   // 0 authored means no cap
 

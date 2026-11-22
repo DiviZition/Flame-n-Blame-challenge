@@ -5,11 +5,12 @@ namespace Flame_n_Blame_Challenge.Domain
 {
     /// Turns input + look into a desired velocity. Intent only: no state, no integration.
     /// The lower PlayerSpeedInAir is the whole air-control model - pushes add to what this produces,
-    /// they never replace it (U5).
+    /// they never replace it (U5). The mirror rule is `PlayerMotion`'s: in flight, this intent never adds
+    /// to a shove along its axis (D-036).
     public class PlayerMovement : IUpdatable
     {
         private readonly IPlayerInput _input;
-        private readonly IGameSettings _settings;
+        private readonly IControlSettings _settings;
         private readonly PlayerLookRotator _look;
 
         public Vector3 DesiredVelocity { get; private set; }
@@ -22,7 +23,7 @@ namespace Flame_n_Blame_Challenge.Domain
         /// asking for the reference back would be a construction cycle.
         public bool IsJumpRequested => _input.IsJumping;
 
-        public PlayerMovement(IPlayerInput input, IGameSettings settings, PlayerLookRotator look)
+        public PlayerMovement(IPlayerInput input, IControlSettings settings, PlayerLookRotator look)
         {
             _input = input;
             _settings = settings;

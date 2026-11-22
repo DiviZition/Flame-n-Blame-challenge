@@ -41,14 +41,14 @@ no scene load (D-026).
 | `` (root) | `Flame_n_Blame_Challenge` | Composition | `Bootstrapper.cs`, `GameUpdater.cs` |
 | `UseCases/` | `.UseCases` | Application | `GamePlaySession.cs` |
 | `Domain/` | `.Domain` | Domain | `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData` |
-| `InterfaceAdapters/` | `.Adapters` | Adapters | ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings` + `Game Settings.asset`, `PushPresets` + `Push Presets.asset`, `ResourceSpawner` + `ResourcesProvider` + `Resources.asset`, `PlayerMotor`, `HydrantPush` |
+| `InterfaceAdapters/` | `.Adapters` | Adapters | ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPhysicsSettings`, `IControlSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings` + `Game Settings.asset`, `PhysicsSettings` + `Physics Settings.asset`, `PlayerControlSettings` + `Player Control Settings.asset`, `PushPresets` + `Push Presets.asset`, `ResourceSpawner` + `ResourcesProvider` + `Resources.asset`, `PlayerMotor`, `HydrantPush` |
 
 `Scripts/Unity/` and `Scripts/Application/` were deleted (2026-11-19, D-012). `HydrantPush` moved with
 its `.meta` (GUID `75c4001556e8f7e47aca53aa50ef5170`) — that GUID is what the scene binds to.
 
 **Who talks to what:** `Bootstrapper` (one `Update()`) → `GameUpdater` → registered `IUpdatable` in
 registration order `PlayerInputMain` → `Player` → `PlayerMotor`. `Player` composes
-`PlayerMotion(PlayerMovement, IGameSettings, IPushPresets)`, exposes `Velocity`, forwards
+`PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings, IPushPresets)`, exposes `Velocity`, forwards
 `ReceivePush(preset, direction)` (two overloads: Impulse, Sustained) and `ReportContact(grounded, normal)`.
 Shells: `PlayerMotor` (`Move(Velocity*dt)`, reports `isGrounded` and the contact normal from Unity's
 `OnControllerColliderHit`, forwards `ApplyForce(preset, direction)`), `HydrantPush` (trigger →
@@ -56,7 +56,10 @@ Shells: `PlayerMotor` (`Move(Velocity*dt)`, reports `isGrounded` and the contact
 what a fired push does (D-016, D-021). `PlayerMotion`'s channels: **horizontal** `ControlVelocity` (input) +
 `PushVelocity` (shove), and **vertical** `VerticalVelocity` (gravity + every launch); the ground absorbs
 vertical **only when it points down**, so a launch that is strong enough to rise accumulates (D-028).
-Presets are authored in `Push Presets.asset`, keyed by `PushType` (D-028).
+Presets are authored in `Push Presets.asset`, keyed by `PushType` (D-028). Authored numbers are split into
+`Physics Settings.asset` (body, contact, damping, the push cap, the jump carry) and
+`Player Control Settings.asset` (the three speeds, the two steering rates, the look); `Game Settings.asset`
+holds the two references and nothing else (D-037).
 
 **Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` (GUID
 `40c42f9779f68674690ed56e87150acf`) + Main Camera (Camera + CinemachineBrain); `=== World` →
@@ -746,3 +749,46 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
   with it - all analytic, no invented number. `unity cmd script recompile` → 0 errors,
   `unity cmd test run --mode editor` → **27 tests, 27 passed** (the 24 existing are untouched: T13, T5, T2,
   T4, T14e pass through the early exits, so the suite is a witness, not a victim).
+
+## D-037: The authored config is split - `PhysicsSettings` and `PlayerControlSettings`, `GameSettings` binds them
+- **Date:** 2026-11-22
+- **Status:** Accepted (the user's ask: "`GameSettings` по набору параметров больше похож на `PlayerPhysicsSettings`…
+  выносить настройки физики и (скорости + чувствительности поворотов) в отдельные конфиги"; `PlayerControlSettings`
+  approved by name, `PhysicsSettings` is provisional — the physics is not player-only, so the name carries no
+  `Player` prefix. A rename is cheap: one type, one asset, one field).
+- **Context:** 16 authored numbers sat in one asset and one port, so every consumer read the whole surface:
+  `PlayerLookRotator` (look only), `PlayerMovement` (speeds only) and `PlayerMotion` (mass, drags, cap, carry)
+  all took `IGameSettings`. The D-035 grouping made this visible — five different subjects in one file, and the
+  user read the file as a physics config.
+- **Decision:**
+  1. **`IPhysicsSettings` / `PhysicsSettings` + `Physics Settings.asset`** — `Mass`, `Gravity`,
+     `GroundedGravity`, `TerminalVelocity`, `GroundFriction`, `GroundDrag`, `AirDrag`, `MaxPushSpeed`,
+     `JumpCarry`: what a push does to a mass, what the contact absorbs, what the air keeps, what the push
+     channel is capped at. The name is **not** player-prefixed: a debris piece, a wave, a burnable body read
+     the same numbers, so the port is the project's physics, not `Player`'s.
+  2. **`IControlSettings` / `PlayerControlSettings` + `Player Control Settings.asset`** — `PlayerSpeedBase`,
+     `PlayerSpeedSprint`, `PlayerSpeedInAir`, `GroundAcceleration`, `AirAcceleration`, `LookSensitivity`,
+     `LookPitchBounds`: what the player **commands**. Commands, not forces — the air speed exists in a model
+     with no reaction force (D-016), and in flight control never adds to a shove (D-036).
+  3. **`IGameSettings` is the session's facade:** `Physics` + `Control`, no numbers of its own. A session rule
+     that needs a number (a win score, a wave count, a timer) joins this port **together with the system that
+     reads it** — a field with no reader is dead surface (D-033).
+  4. **Wiring:** `Player(input, physics, control, presets)`, `PlayerLookRotator(input, control)`,
+     `PlayerMovement(input, control, look)`, `PlayerMotion(movement, physics, control, presets)`;
+     `GamePlaySession` passes `_gameSettings.Physics` and `.Control`. `Bootstrapper` is unchanged — the scene
+     binds `Game Settings.asset` by GUID, and the GUID did not move.
+  5. **`StubSettings` is deleted;** `StubPhysics` + `StubControl` replace it. Analytic expectations are
+     unchanged, so the suite is the gate for the split, not its victim.
+- **Why:** A port should hold what its reader reads: `PlayerLookRotator` has no business knowing a Mass, and a
+  physics port that is not owned by `Player` is the place for every later body in the level. Splitting by
+  **subject** is what the D-035 grouping already said the file was.
+- **Consequences:** Three assets, each its own Inspector screen grouped per D-035; `Game Settings.asset` is two
+  object slots. The authored values survived the move (`component get_fields` read back 80, 19.62, -2, 40, 12,
+  8, 0.5, 12, 1, 5, 8, 2, 20, 6, 0.17, -75/45), including the user's tuned `GroundDrag` **8** and pitch bounds
+  **-75/45**, written through Unity (`asset write_text` for the values and for the two references;
+  `component set_field` takes an object reference as a plain path string, not as an ObjectRef JSON — G-024).
+  `unity cmd script recompile` → 0 errors, `unity cmd test run --mode editor` → **27 tests, 27 passed**
+  (12 jump + 15 motion, the same 27 as before the split). The next physics pass is the **friction merge**
+  (TODO, agreed with the user 2026-11-22): `GroundFriction` is μN/Mass and `GroundDrag` is the same force seen
+  through a second channel, so one ground rate on the **total** horizontal momentum is the honest shape — that
+  pass deletes `GroundDrag`, folds the user's 8 into `GroundFriction`'s ceiling, and re-signs T13/T15c.

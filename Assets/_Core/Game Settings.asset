@@ -12,19 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 972e03f38712d5042a78b33bab2636d5, type: 3}
   m_Name: Game Settings
   m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.GameSettings
-  <PlayerSpeedBase>k__BackingField: 5
-  <PlayerSpeedSprint>k__BackingField: 8
-  <PlayerSpeedInAir>k__BackingField: 2
-  <GroundAcceleration>k__BackingField: 20
-  <AirAcceleration>k__BackingField: 6
-  <GroundFriction>k__BackingField: 12
-  <Mass>k__BackingField: 80
-  <Gravity>k__BackingField: 19.62
-  <GroundedGravity>k__BackingField: -2
-  <TerminalVelocity>k__BackingField: 40
-  <JumpCarry>k__BackingField: 1
-  <GroundDrag>k__BackingField: 4
-  <AirDrag>k__BackingField: 0.5
-  <MaxPushSpeed>k__BackingField: 12
-  <LookSensitivity>k__BackingField: 0.17
-  <LookPitchBounds>k__BackingField: {x: -75, y: 45}
+  _physics: {fileID: 11400000, guid: 2a36b30958de2a947be33fb8f9526a8a, type: 3, classID: 114,
+    script: {fileID: 11500000, guid: 0004e2a8df51d6249836e7feb5bec9e2, type: 3}}
+  _control: {fileID: 11400000, guid: 9dcd188330afa884dbed65e1140f4a56, type: 3, classID: 114,
+    script: {fileID: 11500000, guid: 50697db9bfdec654b9d4332cb1b25d69, type: 3}}

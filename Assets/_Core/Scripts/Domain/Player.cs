@@ -16,11 +16,12 @@ namespace Flame_n_Blame_Challenge.Domain
 
         public Vector3 Velocity => Motion.Velocity;
 
-        public Player(IPlayerInput input, IGameSettings settings, IPushPresets presets)
+        public Player(IPlayerInput input, IPhysicsSettings physics, IControlSettings control,
+            IPushPresets presets)
         {
-            LookRotation = new PlayerLookRotator(input, settings);
-            Movement = new PlayerMovement(input, settings, LookRotation);
-            Motion = new PlayerMotion(Movement, settings, presets);
+            LookRotation = new PlayerLookRotator(input, control);
+            Movement = new PlayerMovement(input, control, LookRotation);
+            Motion = new PlayerMotion(Movement, physics, control, presets);
         }
 
         /// Order within the composite: look, then the intent that reads it, then the velocity that reads

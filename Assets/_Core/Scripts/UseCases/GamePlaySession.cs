@@ -31,7 +31,7 @@ namespace Flame_n_Blame_Challenge.UseCases
 
         public void StartGamePlay()
         {
-            _player = new Player(_inputs, _gameSettings, _pushPresets);
+            _player = new Player(_inputs, _gameSettings.Physics, _gameSettings.Control, _pushPresets);
 
             _playerMotor = _resourceSpawner.SpawnPlayer();
             _playerMotor.Construct(_player);

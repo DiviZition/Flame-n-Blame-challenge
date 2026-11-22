@@ -59,10 +59,11 @@ in DECISIONS.md).
   always-true properties of the domain state (`velocity ≤ MaxPushSpeed`, a push outlives its
   `Duration`, a jump fired on the landing tick survives). **Adapters get none:** a shell has no rules,
   so a test on a shell asserts Unity's behaviour.
-- **Stubs, not fakes of Unity:** domain classes take ports (`IPlayerInput`, `IGameSettings`) through
-  constructors, so a test builds them with `StubInput`/`StubSettings` and the authored DTOs
-  (`Presets`). Authored numbers are set **before** construction (the domain reads them at
-  construction, D-012) — mutating a settings object afterwards is not a test input.
+- **Stubs, not fakes of Unity:** domain classes take ports (`IPlayerInput`, `IPhysicsSettings`,
+  `IControlSettings`, `IPushPresets`) through constructors, so a test builds them with
+  `StubInput`/`StubPhysics`/`StubControl`/`StubPresets` and the authored DTOs (`Presets`). Authored numbers are
+  set **before** construction (the domain reads them at construction, D-012) — mutating a settings object
+  afterwards is not a test input (D-037: one port per reader, so a test sets the port its subject lives in).
 - **Assert analytic expectations:** author a value, compute what must follow (`Force / Mass`), assert
   that. A test that asserts an observed number from a run is a snapshot, not a rule.
 - **Permanent assertions:** frame-rate independence at `dt = 1/60, 1/30, 1/120` within 5% (T8) and the

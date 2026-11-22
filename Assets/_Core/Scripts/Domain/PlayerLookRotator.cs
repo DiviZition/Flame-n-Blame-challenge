@@ -8,7 +8,7 @@ namespace Flame_n_Blame_Challenge.Domain
     public class PlayerLookRotator : IUpdatable
     {
         private readonly IPlayerInput _input;
-        private readonly IGameSettings _settings;
+        private readonly IControlSettings _settings;
 
         public float Yaw { get; private set; }
         public float Pitch { get; private set; }
@@ -16,7 +16,7 @@ namespace Flame_n_Blame_Challenge.Domain
         public Vector3 Forward => Quaternion.Euler(0f, Yaw, 0f) * Vector3.forward;
         public Vector3 Right => Quaternion.Euler(0f, Yaw, 0f) * Vector3.right;
 
-        public PlayerLookRotator(IPlayerInput input, IGameSettings settings)
+        public PlayerLookRotator(IPlayerInput input, IControlSettings settings)
         {
             _input = input;
             _settings = settings;

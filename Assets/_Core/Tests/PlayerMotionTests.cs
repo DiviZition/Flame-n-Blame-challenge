@@ -16,7 +16,8 @@ namespace Flame_n_Blame_Challenge.Tests
         private const float Dt = 1f / 60f;
         private const float Tolerance = 0.0001f;
 
-        private StubSettings _settings;
+        private StubPhysics _physics;
+        private StubControl _control;
         private StubPresets _presets;
         private StubInput _input;
         private PlayerLookRotator _look;
@@ -26,13 +27,14 @@ namespace Flame_n_Blame_Challenge.Tests
         [SetUp]
         public void SetUp()
         {
-            _settings = new StubSettings();
+            _physics = new StubPhysics();
+            _control = new StubControl();
             _presets = new StubPresets();
             _input = new StubInput();
 
-            _look = new PlayerLookRotator(_input, _settings);
-            _movement = new PlayerMovement(_input, _settings, _look);
-            _motion = new PlayerMotion(_movement, _settings, _presets);
+            _look = new PlayerLookRotator(_input, _control);
+            _movement = new PlayerMovement(_input, _control, _look);
+            _motion = new PlayerMotion(_movement, _physics, _control, _presets);
         }
 
         /// One tick, the way the session drives it: contact reported, then the tick runs. The normal is
@@ -57,8 +59,8 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void Momentum_SurvivesTheForceTimer_AndDecaysOnlyByDrag()
         {
-            _settings.AirDrag = 0.5f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0.5f;
+            _physics.MaxPushSpeed = 100f;
 
             _motion.ReportContact(false, Vector3.zero);
             _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 200f), Vector3.forward);
@@ -81,7 +83,7 @@ namespace Flame_n_Blame_Challenge.Tests
 
             Assert.AreEqual(0, _motion.ActivePushCount, "the force itself must be finished");
 
-            float expected = 10f * Mathf.Pow(1f - _settings.AirDrag * Dt, ticks);
+            float expected = 10f * Mathf.Pow(1f - _physics.AirDrag * Dt, ticks);
             Assert.AreEqual(expected, _motion.Velocity.z, 0.1f, "decay must be pure drag, not the timer");
         }
 
@@ -105,9 +107,9 @@ namespace Flame_n_Blame_Challenge.Tests
         private Vector3 LaunchAgainstWall(bool sideContact)
         {
             SetUp();
-            _settings.AirDrag = 0f;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0f;
+            _physics.GroundDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
             _input.InputDirection = new Vector2(1f, 0f);
 
             Tick(60, true);
@@ -123,10 +125,10 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void Landing_KillsVerticalMomentum_AndKeepsHorizontalMomentum()
         {
-            _settings.Gravity = 20f;
-            _settings.AirDrag = 0f;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.Gravity = 20f;
+            _physics.AirDrag = 0f;
+            _physics.GroundDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
 
             Tick(10, false);
             Assert.AreEqual(-20f * 10f * Dt, _motion.VerticalVelocity, Tolerance, "falling accumulates");
@@ -137,7 +139,7 @@ namespace Flame_n_Blame_Challenge.Tests
 
             TickOnce(true, Vector3.up);
 
-            Assert.AreEqual(_settings.GroundedGravity - _settings.Gravity * Dt, _motion.VerticalVelocity, Tolerance,
+            Assert.AreEqual(_physics.GroundedGravity - _physics.Gravity * Dt, _motion.VerticalVelocity, Tolerance,
                 "the ground absorbs the fall momentum");
             Assert.AreEqual(carried, _motion.PushVelocity.z, Tolerance, "landing must not absorb horizontal momentum");
         }
@@ -147,8 +149,8 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void LaunchDirection_ComesFromTheSource_NotThePlayersFacing()
         {
-            _settings.AirDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
 
             Vector3[] results = new Vector3[4];
             for (int turn = 0; turn < 4; turn++)
@@ -177,9 +179,9 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void Pushes_AddToMovement_TheyNeverReplaceIt()
         {
-            _settings.AirDrag = 0f;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0f;
+            _physics.GroundDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
             _input.InputDirection = new Vector2(1f, 0f);
 
             Tick(60, true);
@@ -208,9 +210,9 @@ namespace Flame_n_Blame_Challenge.Tests
 
             Assert.AreEqual(1, maxCount, "600 calls over 10 s must leave ONE entry, not 600");
 
-            float equilibrium = 80f / _settings.Mass / 0.5f;
+            float equilibrium = 80f / _physics.Mass / 0.5f;
             Assert.Greater(speeds[599], 1f, "the spray must actually shove");
-            Assert.Less(speeds[599], _settings.MaxPushSpeed, "the equilibrium is below the cap, so no clamping here");
+            Assert.Less(speeds[599], _physics.MaxPushSpeed, "the equilibrium is below the cap, so no clamping here");
 
             for (int tick = 1; tick < 600; tick++)
                 Assert.GreaterOrEqual(speeds[tick], speeds[tick - 1] - Tolerance,
@@ -241,7 +243,7 @@ namespace Flame_n_Blame_Challenge.Tests
                 Assert.IsTrue(speeds[tick] <= cap + Tolerance,
                     "the push channel must never exceed MaxPushSpeed (tick " + tick + ")");
 
-            float equilibrium = 300f / _settings.Mass / 0.5f;
+            float equilibrium = 300f / _physics.Mass / 0.5f;
             Assert.Greater(equilibrium, cap, "the force/drag equilibrium is above the cap, so this is clamping");
 
             float meanLate = Mean(speeds, 420, 600);
@@ -254,9 +256,9 @@ namespace Flame_n_Blame_Challenge.Tests
         private float[] RunSpray(float force, float airDrag, float cap, out int maxCount)
         {
             SetUp();
-            _settings.AirDrag = airDrag;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = cap;
+            _physics.AirDrag = airDrag;
+            _physics.GroundDrag = 0f;
+            _physics.MaxPushSpeed = cap;
 
             const int refireEvery = 6, ticks = 600;
             float[] speeds = new float[ticks];
@@ -290,8 +292,8 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void ReFiringOneType_GivesOneImpulse_NotAHundred()
         {
-            _settings.AirDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
 
             for (int i = 0; i < 100; i++)
                 _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 40f), Vector3.forward);
@@ -300,7 +302,7 @@ namespace Flame_n_Blame_Challenge.Tests
 
             TickOnce(false, Vector3.zero);
 
-            float oneImpulse = 40f / _settings.Mass;
+            float oneImpulse = 40f / _physics.Mass;
             Assert.AreEqual(oneImpulse, _motion.PushVelocity.z, Tolerance, "one impulse, not 100");
         }
 
@@ -320,8 +322,8 @@ namespace Flame_n_Blame_Challenge.Tests
         private float RunDecayScenario(float dt)
         {
             SetUp();
-            _settings.AirDrag = 0.5f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0.5f;
+            _physics.MaxPushSpeed = 100f;
 
             _motion.ReportContact(false, Vector3.zero);
             _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 200f), Vector3.forward);
@@ -344,9 +346,9 @@ namespace Flame_n_Blame_Challenge.Tests
         {
             // Authored numbers are read when the domain is constructed (they come from an asset and do
             // not change mid-session, D-012), so a degenerate Mass is a player built with that Mass.
-            _settings.AirDrag = 0f;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = 0f;
+            _physics.AirDrag = 0f;
+            _physics.GroundDrag = 0f;
+            _physics.MaxPushSpeed = 0f;
             Rebuild(0f);
 
             for (int i = 0; i < 9; i++)
@@ -376,8 +378,8 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void ActivePushTicking_AllocatesNothingPerTick()
         {
-            _settings.AirDrag = 0.5f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0.5f;
+            _physics.MaxPushSpeed = 100f;
 
             for (int i = 0; i < 8; i++)
                 _motion.ApplyPush(Presets.Sustained((PushType)i, 10f, 1000f), Vector3.forward);
@@ -419,11 +421,11 @@ namespace Flame_n_Blame_Challenge.Tests
         private float RunAShove(float shove, float dragRate, bool grounded)
         {
             SetUp();
-            _settings.MaxPushSpeed = 100f;
-            _settings.GroundDrag = grounded ? dragRate : 0f;
-            _settings.AirDrag = grounded ? 0f : dragRate;
+            _physics.MaxPushSpeed = 100f;
+            _physics.GroundDrag = grounded ? dragRate : 0f;
+            _physics.AirDrag = grounded ? 0f : dragRate;
 
-            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _settings.Mass), Vector3.forward);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _physics.Mass), Vector3.forward);
 
             const int ticks = 60;
             for (int tick = 0; tick < ticks; tick++)
@@ -437,11 +439,11 @@ namespace Flame_n_Blame_Challenge.Tests
         /// sets them and then builds the parts, exactly as the session does.
         private void Rebuild(float mass)
         {
-            _settings.Mass = mass;
+            _physics.Mass = mass;
             _input = new StubInput();
-            _look = new PlayerLookRotator(_input, _settings);
-            _movement = new PlayerMovement(_input, _settings, _look);
-            _motion = new PlayerMotion(_movement, _settings, _presets);
+            _look = new PlayerLookRotator(_input, _control);
+            _movement = new PlayerMovement(_input, _control, _look);
+            _motion = new PlayerMotion(_movement, _physics, _control, _presets);
         }
 
         // T15a - the air rule (D-036): a player cannot push against nothing, so control has no authority
@@ -451,12 +453,12 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void AirborneRun_AlongAShove_AddsNothing_TheSpeedIsTheShoves()
         {
-            _settings.AirDrag = 0f;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0f;
+            _physics.GroundDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
 
             Tick(1, true);
-            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _settings.Mass), Vector3.forward);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _physics.Mass), Vector3.forward);
 
             _input.InputDirection = new Vector2(0f, 1f);   // running WITH the shove, the same axis
             Tick(60, false);
@@ -472,18 +474,18 @@ namespace Flame_n_Blame_Challenge.Tests
         [Test]
         public void AirborneRun_AcrossAShove_KeepsItsOwnAirSpeed()
         {
-            _settings.AirDrag = 0f;
-            _settings.GroundDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0f;
+            _physics.GroundDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
 
             Tick(1, true);
-            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _settings.Mass), Vector3.forward);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _physics.Mass), Vector3.forward);
 
             _input.InputDirection = new Vector2(1f, 0f);   // running across the shove
             Tick(60, false);
 
             Assert.AreEqual(10f, _motion.Velocity.z, Tolerance, "the shove flies on, untouched");
-            Assert.AreEqual(_settings.PlayerSpeedInAir, _motion.Velocity.x, 0.01f,
+            Assert.AreEqual(_control.PlayerSpeedInAir, _motion.Velocity.x, 0.01f,
                 "steering across a shove is the player's own air speed");
         }
 
@@ -500,15 +502,15 @@ namespace Flame_n_Blame_Challenge.Tests
             float[] against = RunGroundShove(shove, ticks, new Vector2(0f, -1f));
             float[] with = RunGroundShove(shove, ticks, new Vector2(0f, 1f));
 
-            float eaten = shove * Mathf.Pow(1f - (_settings.GroundDrag + _settings.GroundFriction) / 60f, ticks);
+            float eaten = shove * Mathf.Pow(1f - (_physics.GroundDrag + _physics.GroundFriction) / 60f, ticks);
             Assert.AreEqual(eaten, against[0], 0.05f, "the counter-run eats the shove at the ground friction rate");
             Assert.Less(against[0], 0.5f, "the shove is gone inside a second: the player can run");
-            Assert.AreEqual(-_settings.PlayerSpeedBase, against[1], 0.01f, "the run itself is full speed");
+            Assert.AreEqual(-_control.PlayerSpeedBase, against[1], 0.01f, "the run itself is full speed");
 
-            float plain = shove * Mathf.Pow(1f - _settings.GroundDrag / 60f, ticks);
+            float plain = shove * Mathf.Pow(1f - _physics.GroundDrag / 60f, ticks);
             Assert.AreEqual(plain, with[0], 0.05f,
                 "running WITH a shove adds no extra decay, and no extra acceleration (D-036)");
-            Assert.AreEqual(_settings.PlayerSpeedBase, with[1], 0.01f, "the player runs normally alongside it");
+            Assert.AreEqual(_control.PlayerSpeedBase, with[1], 0.01f, "the player runs normally alongside it");
         }
 
         /// One shove of `shove` m/s along +z, grounded for `ticks`, running in `run`: returns the shove
@@ -516,11 +518,11 @@ namespace Flame_n_Blame_Challenge.Tests
         private float[] RunGroundShove(float shove, int ticks, Vector2 run)
         {
             SetUp();
-            _settings.AirDrag = 0f;
-            _settings.MaxPushSpeed = 100f;
+            _physics.AirDrag = 0f;
+            _physics.MaxPushSpeed = 100f;
 
             Tick(1, true);
-            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _settings.Mass), Vector3.forward);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _physics.Mass), Vector3.forward);
 
             _input.InputDirection = run;
             Tick(ticks, true);
