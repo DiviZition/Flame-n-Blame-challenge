@@ -11,6 +11,8 @@ namespace Flame_n_Blame_Challenge.Tests
     /// Gravity * Duration, so a preset change moves the number and a hard-coded jump does not. The launch
     /// assertions use a 0.2 tolerance: one tick of gravity (10/60 = 0.1667) is the discretization floor of
     /// a tick-integrated force, and the analytic number is the integral, not the sum of ticks.
+    /// T14 asserts the forward carry of D-034: `JumpCarry * ControlVelocity` in the push channel, the height
+    /// untouched, the cap applied, the decay analytic.
     public class PlayerJumpTests
     {
         private const float Dt = 1f / 60f;
@@ -212,6 +214,121 @@ namespace Flame_n_Blame_Challenge.Tests
 
             Assert.AreEqual(light * 0.5f, _player.Motion.VerticalVelocity, LaunchTolerance,
                 "the same preset shoves a heavier player half as much");
+        }
+
+        // T14a - standing: the carry is exactly zero. This is the case that used to produce 0/0 = NaN, so the
+        // expectation is "no momentum", not "no crash": a swallowed NaN would read as a pass on a magnitude.
+        [Test]
+        public void StandingJump_CarriesNoMomentum_HeightIsThePreset()
+        {
+            PressAndFire();
+            Tick(59, true);
+
+            Assert.AreEqual(0f, _player.Motion.PushVelocity.magnitude, Tolerance,
+                "standing carries zero, not NaN");
+            Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
+                "the height is the authored preset");
+        }
+
+        // T14b - the rule D-034 chose: the player's own speed is carried into the push channel, and the
+        // vertical launch stays the preset's number. A tilt model fails the second assertion (√2 lower), a
+        // ratio model fails the first (it carries proximity to the target speed, not speed).
+        [Test]
+        public void RunningJump_CarriesOwnSpeed_HeightIsUnchanged()
+        {
+            _input.InputDirection = new Vector2(1f, 0f);   // Right at yaw 0, so the run is along +x
+            Tick(60, true);
+            float walked = _player.Motion.ControlVelocity.x;
+            Assert.Greater(walked, 4.9f, "the run-up has reached the authored walk speed");
+
+            PressAndFire();
+            Tick(1, true);
+
+            Assert.AreEqual(walked, _player.Motion.PushVelocity.x, 0.02f,
+                "JumpCarry 1 carries the player's own speed, the direction is straight up");
+
+            Tick(59, true);
+            Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
+                "the launch height is the preset, not the preset minus a tilt");
+        }
+
+        // T14c - "the lower the speed, the less impulse": walk (5) and sprint (8), the same preset. Each
+        // carry is asserted against the authored speed it came from, so the expectation is analytic twice.
+        [Test]
+        public void SlowerRun_CarriesLess_TheLaunchIsTheSame()
+        {
+            float[] carries = new float[2];
+            for (int run = 0; run < 2; run++)   // 0 = walk, 1 = sprint
+            {
+                SetUp();
+                _input.InputDirection = new Vector2(1f, 0f);
+                _input.IsRunning = run == 1;
+                Tick(60, true);
+                float speed = _player.Movement.DesiredVelocity.magnitude;
+
+                _input.IsJumping = true;
+                Tick(1, true);
+
+                carries[run] = _player.Motion.PushVelocity.x;
+                Assert.AreEqual(speed, carries[run], 0.02f, "the carry is the speed the player had (run " + run + ")");
+            }
+
+            Assert.Greater(carries[1], carries[0], "a sprint carries more than a walk");
+        }
+
+        // T14d - the invariant "velocity never exceeds MaxPushSpeed" on the jump channel: an authored carry
+        // above the cap saturates, it does not launch the player at 16 m/s. Authored numbers are set before
+        // construction (D-012), so this is a player built with the cap.
+        [Test]
+        public void JumpCarry_AboveTheCap_SaturatesAtMaxPushSpeed()
+        {
+            _settings.MaxPushSpeed = 12f;
+            _settings.JumpCarry = 2f;
+            Rebuild();
+
+            _input.InputDirection = new Vector2(1f, 0f);
+            _input.IsRunning = true;
+            Tick(60, true);
+            Assert.AreEqual(_settings.PlayerSpeedSprint, _player.Movement.DesiredVelocity.magnitude, Tolerance,
+                "the run has reached the authored sprint speed");
+
+            _input.IsJumping = true;
+            Tick(1, true);
+
+            Assert.AreEqual(12f, _player.Motion.PushVelocity.x, Tolerance,
+                "8 * 2 saturates at the cap, the channel is never above MaxPushSpeed");
+        }
+
+        // T14e - the carry is momentum, not a force: it outlives the jump tick and decays only by the
+        // authored AirDrag. The expectation is the analytic geometric decay, the same shape as T1/T13.
+        [Test]
+        public void JumpCarry_OutlivesTheJumpTick_AndDecaysOnlyByAirDrag()
+        {
+            _settings.AirDrag = 0.5f;
+            Rebuild();
+
+            _input.InputDirection = new Vector2(1f, 0f);
+            Tick(60, true);
+            float carried = _player.Motion.ControlVelocity.x;
+
+            PressAndFire();
+            Assert.Greater(_player.Motion.PushVelocity.x, carried * 0.9f, "the carry is there on the jump tick");
+
+            const int flight = 60;
+            Tick(flight, false);
+
+            float expected = carried * Mathf.Pow(1f - _settings.AirDrag * Dt, flight);
+            Assert.AreEqual(expected, _player.Motion.PushVelocity.x, 0.05f,
+                "the carry flies and decays by AirDrag alone");
+            Assert.Greater(_player.Motion.VerticalVelocity, 0f, "the launch is still rising, so the flight is real");
+        }
+
+        /// Authored numbers are read at construction (D-012), so a scenario that needs a different `JumpCarry`
+        /// or cap sets them and then builds the parts, exactly as the session does.
+        private void Rebuild()
+        {
+            _input = new StubInput();
+            _player = new Player(_input, _settings, _presets);
         }
     }
 }

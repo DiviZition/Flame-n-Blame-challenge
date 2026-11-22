@@ -217,3 +217,13 @@ changing an ID, a status or a Rule is not (D-024).
 - **Rule:** Write the file **through Unity**: `unity cmd asset write_text --path … --contents $c --confirm
   true` (LF-only content) — Unity imports it, generates the proper `MonoImporter` `.meta`, and the type
   compiles. Do not hand-write `.meta` files.
+
+## G-023: An epsilon guard swallows NaN, so a bad direction means "no push" and the console says nothing
+- **Status:** Recorded 2026-11-22 (D-034)
+- **What:** A jump direction built as `up + normalized * (magnitude / magnitude)` is NaN when the player
+  stands (the denominator is 0). `AddActivePush` guards with `direction.sqrMagnitude > 0.0001f`, and
+  `NaN > x` is **false**, so the guard accepted NaN as "zero direction": the push entry existed, its
+  direction was `Vector3.zero`, the jump never fired, and no error appeared anywhere.
+- **Rule:** Every epsilon comparison is also a NaN swallow — the guard is a zero-guard, not a NaN-guard.
+  Never divide by a live value: use an authored constant as the denominator, or multiply by a coefficient, so
+  the degenerate case is **zero** (a no-op the model can see) and not NaN (a no-op nobody sees).

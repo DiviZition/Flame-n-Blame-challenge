@@ -89,4 +89,4 @@ MonoBehaviour:
       type: {class: ImpulsePresetData, ns: Flame_n_Blame_Challenge.Domain, asm: FlameNBlame}
       data:
         _type: 2
-        _force: 700
+        _force: 800

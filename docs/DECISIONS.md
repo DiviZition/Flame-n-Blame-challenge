@@ -587,7 +587,7 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
      `(PushType type)` and the DTOs take their own fields.
   2. **The asset is re-authored through Unity** with the new constructors, so the `_name` keys leave the YAML.
      Numbers unchanged: HydrantPush 4500 N curve 1->0 dur 1 s, ExtinguisherShove 300 N flat dur 0.1 s,
-     PlayerJump 2600 N keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N�s.
+     PlayerJump 2600 N keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N�s.
   3. **No value tuning by test sweeps.** The gate is the one standing run (`script recompile` ->
      `up_to_date`, `test run --mode editor` -> 19/19). Preset numbers move from the **user's play** (the
      `[v]` log is read afterwards), never from a search over parameters: the user's measurement is that
@@ -632,5 +632,46 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
   second rule. Deleting them costs nothing and removes the claim.
 - **Consequences:** `PlayerMotionTests` call `ApplyPush` (11 sites), the suite stays **19/19**
   (`unity cmd test run --mode editor`), `PlayerMotor` is log-free, and the enum's named values are the sources
-  that exist. The asset's authored jump is the **user's** tuning (an Impulse 700 N�s in the Inspector), not a
+  that exist. The asset's authored jump is the **user's** tuning (an Impulse 700 N�s in the Inspector), not a
   number I re-wrote.
+
+## D-034: A jump carries the player's speed as momentum, not as a tilt of the launch
+- **Date:** 2026-11-22
+- **Status:** Accepted (the user's rule: keep the speed influence, do not spoil the vertical launch — a
+  running jump must not be lower than a standing one, and the slower you run the less it carries you).
+  Supersedes nothing: the jump gate (D-017, D-021), the authored preset (D-029, D-031, D-033) and the three
+  channels (D-016) all stand.
+- **Context:** The user wanted the jump to carry the player in the direction of movement with the force of
+  their speed, and drafted `direction = Vector3.up + _controlVelocity.normalized *
+  (_controlVelocity.magnitude / _movement.DesiredVelocity.magnitude)`. Reading it gave three facts:
+  (1) standing still is `0/0` = **NaN**, and `AddActivePush`'s `direction.sqrMagnitude > 0.0001f` guard
+  compares **false** against NaN, so the direction became `Vector3.zero` — the entry was created, the launch
+  had no direction, **the jump did not fire, and nothing reported it** (G-023);
+  (2) the direction is normalized inside the entry point and the impulse magnitude is authored, so tilting it
+  at full speed splits the launch 45°/45°: the vertical launch drops by √2 — **a running jump jumps lower
+  than a standing one**;
+  (3) the ratio is *proximity to the authored target speed*, not speed: walking (5) and sprinting (8) both
+  reach 1, so a run-up buys nothing.
+- **Decision:**
+  1. **The preset launches straight up, untouched:** `ApplyPush(PresetOf(PlayerJump), Vector3.up)`. The
+     authored `Force` is the launch, so height stays the number the user tunes in the Inspector and no speed
+     rule touches it.
+  2. **The player's own speed is carried into the push channel as inertia** in the same tick:
+     `AddPushDelta(_controlVelocity * JumpCarry)`. `JumpCarry` is authored in `IGameSettings`/`GameSettings`,
+     default **1**: a sprint jump carries the whole 8 m/s, a walk jump carries its 5, standing carries exactly
+     zero. The direction of the carry is the direction of movement, so it needs no facing.
+  3. **The carry is a velocity in the push channel, not a force:** `MaxPushSpeed` bounds it, `AirDrag` decays
+     it through the flight, `GroundDrag` absorbs it on landing — the rules every shove already obeys (D-016,
+     G-012). No new list entry and no `Carry` field on the DTO: an authored preset cannot hold a magnitude
+     derived from a live velocity, and a field 3 of 4 presets cannot read is authored overhead (D-028, D-031).
+- **Why:** A tilt trades height for reach, adds a knob the user cannot author, and **punishes the run-up** —
+  the opposite of what the mechanic is for. Carrying the velocity is the physical fact: nothing opposes
+  horizontal motion at the moment of launch, so the model's own channel rules decide what survives it.
+  Multiplying by zero is not a division, so the degenerate case (standing) needs no guard.
+- **Consequences:** `TryJump` is two statements and reads no ratio; `_movement.DesiredVelocity` plays no part
+  in the jump. One authored number (`JumpCarry`) is tuned by the user playing, not by a parameter sweep
+  (D-032). The jump tests drive `_input.InputDirection = 0`, so the carry is zero there and the suite is
+  unchanged. After the user played and approved the feel (2026-11-22), **T14a-T14e** assert it: standing
+  carries zero, `PushVelocity == control * JumpCarry` on the jump tick, walk 5 vs sprint 8, a carry above
+  `MaxPushSpeed` saturates at the cap, and the carry outlives the jump tick decaying only by `AirDrag` —
+  `unity cmd test run --mode editor` → **24 tests, 24 passed**.

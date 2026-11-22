@@ -13,6 +13,10 @@ namespace Flame_n_Blame_Challenge.Tests
         public float PlayerSpeedSprint { get; set; } = 8f;
         public float PlayerSpeedInAir { get; set; } = 2f;
 
+        /// The jump carries this fraction of the player's own speed into the push channel (D-034). Default 1
+        /// so a test that never mentions it sees the real rule; a test that wants clean vertical math sets 0.
+        public float JumpCarry { get; set; } = 1f;
+
         public float LookSensitivity { get; set; } = 1f;
         public Vector2 LookPitchBounds { get; set; } = new Vector2(-90f, 90f);
 

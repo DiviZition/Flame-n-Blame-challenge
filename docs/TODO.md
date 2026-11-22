@@ -93,6 +93,12 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [ ] **Launch-survives-ground test** (with the feel pass, D-026): a weak jet (300 N, < `Mass·Gravity`)
   stays absorbed on the ground; a 2000 N launch accumulates through grounded ticks and rises. Written only
   after the user approves the feel.
+- [x] 2026-11-22 — **Jump forward carry** (D-034): the jump is the preset **straight up** +
+  `JumpCarry × ControlVelocity` in the push channel — a run-up reaches further, the height is untouched,
+  standing carries exactly zero (the draft's 0/0 = NaN swallowed the jump, G-023). `JumpCarry` is authored in
+  `GameSettings`, default 1. The user played and approved the feel. **T14a-T14e** (standing / carry == speed /
+  walk 5 vs sprint 8 / saturates at `MaxPushSpeed` / decays by `AirDrag` alone) →
+  `unity cmd test run --mode editor` → **24 tests, 24 passed**, 0.13 s.
 - [x] 2026-11-21 — **Authoring numbers for the feel pass** (the asset, not the code): a launch that lifts
   needs `Force > Mass·Gravity` = **1569 N** (80 kg × 19.62), so a 45° nozzle needs ≈ 2220 N. Measured in
   Play Mode: **Jump 2600 N** up, plateau-then-fade over 1 s → peak y **1.85 m**, `vert` 3.24 m/s, and it

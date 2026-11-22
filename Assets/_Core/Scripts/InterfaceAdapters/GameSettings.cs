@@ -11,6 +11,11 @@ namespace Flame_n_Blame_Challenge.Adapters
         [field: SerializeField] public float PlayerSpeedSprint { get; private set; } = 8f;
         [field: SerializeField] public float PlayerSpeedInAir { get; private set; } = 2f;
 
+        /// The jump's forward carry, as a fraction of the speed the player had at takeoff. It lands in the
+        /// push channel, so `MaxPushSpeed` bounds it and `AirDrag` decays it through the flight. The vertical
+        /// launch is the authored jump preset, untouched: this number chooses reach only, never height.
+        [field: SerializeField] public float JumpCarry { get; private set; } = 1f;
+
         [field: SerializeField] public float LookSensitivity { get; private set; } = 0.17f;
         [field: SerializeField] public Vector2 LookPitchBounds { get; private set; } = new Vector2(-90f, 90f);
 

@@ -12,7 +12,9 @@ namespace Flame_n_Blame_Challenge.Domain
     /// own movement and is never touched by a push, PushVelocity is horizontal momentum from pushes,
     /// VerticalVelocity is gravity plus the vertical part of every launch. A single vector would let the
     /// input steering step eat a launch back toward the input intent; the split is what makes
-    /// "pushes add, never replace" structural (U5).
+    /// "pushes add, never replace" structural (U5). The player's own jump is the one push built from this
+    /// split: its authored launch goes vertically, and a fraction of `ControlVelocity` is carried into the
+    /// push channel as forward inertia (D-034).
     ///
     /// The vertical split is what makes a **timed** launch possible. The ground zeroes vertical momentum,
     /// so a launch that lives in the same channel as the ground is eaten by the next grounded tick: a
@@ -119,7 +121,19 @@ namespace Flame_n_Blame_Challenge.Domain
                 return;
 
             _jumpFiredThisContact = true;
+
+            // The authored preset launches **straight up**: its Force is the launch, so tilting the direction
+            // by speed trades height for reach — a running jump lower than a standing one, because the
+            // direction is normalized and the impulse magnitude is fixed. The speed goes into the push
+            // channel as **carried inertia** instead (`JumpCarry * control velocity`): slow run carries
+            // little, sprint carries most, standing carries exactly zero. No ratio to divide by, so standing
+            // has no 0/0, and the carry is bounded by `MaxPushSpeed` and decays by `AirDrag` through the
+            // flight, the same rule as any shove (D-016, D-034).
             ApplyPush(_presets.PresetOf(PushType.PlayerJump), Vector3.up);
+
+            Vector3 carried = _controlVelocity * Mathf.Max(0f, _settings.JumpCarry);
+            if (carried.sqrMagnitude > 0.0001f)
+                AddPushDelta(carried);
         }
 
         /// The shell reports what Unity observed on the last Move: grounded, and the normal of the surface

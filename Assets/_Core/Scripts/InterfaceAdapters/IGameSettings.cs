@@ -9,6 +9,11 @@ namespace Flame_n_Blame_Challenge.Adapters
         float PlayerSpeedSprint { get; }
         float PlayerSpeedInAir { get; }
 
+        /// The jump's forward carry: the fraction of the player's own speed that is carried into the flight
+        /// as push-channel momentum. 1 = keep all of it, 0 = a vertical-only jump. The vertical launch is the
+        /// authored preset alone, so this number never trades height for reach.
+        float JumpCarry { get; }
+
         float LookSensitivity { get; }
         Vector2 LookPitchBounds { get; }
 
