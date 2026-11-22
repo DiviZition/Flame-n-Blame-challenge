@@ -93,11 +93,11 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [ ] **Launch-survives-ground test** (with the feel pass, D-026): a weak jet (300 N, < `Mass·Gravity`)
   stays absorbed on the ground; a 2000 N launch accumulates through grounded ticks and rises. Written only
   after the user approves the feel.
-- [ ] **Feel pass on the counter-run** (D-036): play a hydrant shove + run against it, and a shove + run
-  with it. The rule reuses `GroundFriction` (12/s), so the absorption rate is not authored separately; if the
-  feel wants it its own knob, add `CounterAbsorb` to `IPhysicsSettings`/`PhysicsSettings` and the test is re-run,
-  not re-argued (D-026). **Superseded by the friction merge below** — if the merge lands, the counter-run has one
-  rate and this line's knob question closes.
+- [ ] **Feel pass, one ground number** (the merge D-038 made it one): play a hydrant shove + run **against**
+  it, and a shove + run **with** it, at the authored `GroundFriction` **8** in `Physics Settings.asset`. The
+  `CounterAbsorb` question is closed — the two runs decay at the same rate, and the run ramps at that rate, so
+  the verdict is only the shape of the number: 0→5 m/s in 0.63 s, 0→8 m/s sprint in 1 s, a 10 m/s shove gone
+  inside a second. If the feel wants more, **the number moves, not the code** (D-026).
 - [x] 2026-11-22 — **Ice fix: contact gives control authority over momentum** (D-036): in the air the
   component of `ControlVelocity` **along** a shove is removed every tick (running with a launch adds nothing,
   steering across keeps `PlayerSpeedInAir`); on the ground running **against** a shove eats it at
@@ -162,14 +162,14 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   flight at the reduced air speed; (e) a 0.1 s spray for 3 s **saturates**, not accelerates (B-003).
   **The tests for this mechanic are written after the user approves it** (D-026) — the push-model suite
   is edited along with the feel pass, not ahead of it.
-- [ ] **Friction merge** (design agreed with the user 2026-11-22, code not written): **one authored ground rate**.
-  `GroundFriction` (μN/Mass, m/s²) applies to the **total** horizontal momentum — it stops the control when input
-  is released, eats a shove when the player runs against it, adds nothing when running with it. `GroundDrag`
-  (the user's tuned **8** in `Physics Settings.asset`) is deleted; `GroundAcceleration` becomes
-  `min(authored, GroundFriction)` (20 > 12 is unphysical — the legs cannot push harder than the ground's
-  reaction); `AbsorbCounterRun` folds into `ApplyDrag`, `ShoveAxis()` goes with it; `AirDrag` stays (no reaction
-  in the air, D-016). T13's decay rate changes (ground rate, not 4/s), T15c is re-signed, the 10
-  `_physics.GroundDrag = 0f` isolations in the tests go with the field. The user's rule for why: *"за трение с
+- [x] 2026-11-22 — **Friction merge** (D-038): **one authored ground rate**. `GroundFriction` (μN/Mass, m/s²)
+  ramps the run to `DesiredVelocity`, brings the control to rest when the input is released, and eats shove
+  momentum in every direction. `GroundDrag` (the user's tuned 8) and `GroundAcceleration` (20, unphysical above
+  μ — the legs cannot push harder than the ground's reaction) are deleted from both ports, both assets, both
+  stubs; `AbsorbCounterRun` (19 lines) and D-036's sign rule are deleted, `ShoveAxis()` stays for the air clamp
+  only. The user's 8 is now the ground's authored value (0→5 m/s in 0.63 s, 0→8 m/s in 1 s, a 10 m/s shove gone
+  inside a second). Tests re-signed analytically: T3, T5, T13, T15c, T14b/c/e — `unity cmd script recompile` →
+  0 errors, `unity cmd test run --mode editor` → **27 tests, 27 passed**. The user's rule: *"за трение с
   поверхностью отвечал один параметр. Иначе это очень сложно настраивать, тестировать и вообще код становится
   сложнее"* — the wall between the two rates was the ice (G-012, D-020, D-036).
 - [ ] **Recover the design contract.** `docs/TDD.md` + `docs/Preproduction.md` are not in the repo and

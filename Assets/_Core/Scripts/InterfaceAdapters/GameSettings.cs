@@ -14,8 +14,8 @@ namespace Flame_n_Blame_Challenge.Adapters
             + "carry. Authored in `Physics Settings.asset`."), SerializeField]
         private PhysicsSettings _physics;
 
-        [field: Tooltip("What the player commands: the three speeds, the steering rates, the look. Authored in "
-            + "`Player Control Settings.asset`."), SerializeField]
+        [field: Tooltip("What the player commands: the three speeds, the airborne steering rate, the look. "
+            + "Authored in `Player Control Settings.asset`."), SerializeField]
         private PlayerControlSettings _control;
 
         public IPhysicsSettings Physics => _physics;

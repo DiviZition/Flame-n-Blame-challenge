@@ -31,18 +31,22 @@ namespace Flame_n_Blame_Challenge.Domain
     /// stops dead. The normal is reported by the shell (G-016); only the component along the normal is
     /// absorbed.
     ///
-    /// Momentum has two decay rates, because contact changes what absorbs it: authored `GroundDrag` while
-    /// grounded (a shove is friction against the ground and stops within about a second) and authored
-    /// `AirDrag` while airborne (the inertia of a launch during flight, which is the whole point of D-016).
-    /// One rate for both is what makes the ground read as ice (G-012).
+    /// Momentum is absorbed by contact, and the ground has **one** authored number: `GroundFriction`
+    /// (μN/Mass, m/s²). It is the reaction the legs can push against, so the same rate both ramps
+    /// `ControlVelocity` to its commanded speed (and to rest when the input is released) **and** eats the
+    /// momentum a shove leaves behind (D-038). Airborne, there is no reaction, so `AirDrag` is the only rate:
+    /// a launch keeps its inertia through the flight, which is the whole point of D-016. One rate for ground
+    /// and air is what made the floor read as ice (G-012); splitting the ground's force into two rates — one
+    /// for the shove, one for the control — is what made the numbers fight each other, and that is the second
+    /// ice symptom this file had.
     ///
-    /// Contact decides the **authority of the player's own effort** over that momentum, which is the rest
-    /// of the ice rule (D-036). Airborne, the legs have no ground to push against: control keeps its own
-    /// air speed and can never add to a shove, so the component of `ControlVelocity` along the shove is
-    /// removed in flight — the speed in the shove's direction is the shove's. Grounded, the ground's
-    /// reaction is a real force, so running **against** a shove eats it at `GroundFriction` on top of
-    /// `GroundDrag`; running **with** a shove eats nothing and adds nothing, and the sign of the dot
-    /// product is the whole rule. No input leaves the pure `GroundDrag` decay of T13 intact.
+    /// Contact decides the **authority of the player's own effort** over momentum (D-036). Airborne, the legs
+    /// have no ground to push against: control keeps its own air speed and can never add to a shove, so the
+    /// component of `ControlVelocity` along the shove is removed in flight — the speed in the shove's
+    /// direction is the shove's. Grounded, the reaction is real, so the run ramps at `GroundFriction` and the
+    /// shove decays at the **same** rate in every direction: running **against** a shove kills it inside a
+    /// second and the player runs at full speed, running **with** it gets no boost, because the excess is
+    /// eaten by the same force. No sign rule, no second ground rate.
     ///
     /// Perf budget (TODO.md, written before code): 8 simultaneous pushes, no per-tick allocation,
     /// < 0.05 ms per player per tick.
@@ -210,7 +214,6 @@ namespace Flame_n_Blame_Challenge.Domain
             TickPushes(deltaTime);
             ApplyInputControl(deltaTime);
             ApplyDrag(deltaTime);
-            AbsorbCounterRun(deltaTime);
             ClampPushVelocity();
 
             Velocity = _controlVelocity + _pushVelocity + Vector3.up * _verticalVelocity;
@@ -309,11 +312,13 @@ namespace Flame_n_Blame_Challenge.Domain
             Vector3 desired = _movement.DesiredVelocity;
             Vector3 current = new Vector3(_controlVelocity.x, 0f, _controlVelocity.z);
 
-            float approach;
-            if (desired.sqrMagnitude < 0.0001f)
-                approach = IsGrounded ? _physics.GroundFriction : 0f;   // no friction in the air
-            else
-                approach = IsGrounded ? _control.GroundAcceleration : _control.AirAcceleration;
+            // Grounded, the legs have one thing to push against - the ground's reaction - so ONE rate governs
+            // both directions: it ramps the control to the commanded speed, and brings it to rest when the
+            // input is released (D-038). Airborne, there is no reaction, so the control keeps its authored air
+            // speed: it ramps toward the input at `AirAcceleration`, and does not decay on release (D-016).
+            float approach = IsGrounded
+                ? _physics.GroundFriction
+                : (desired.sqrMagnitude < 0.0001f ? 0f : _control.AirAcceleration);
 
             Vector3 steered = current + (desired - current) * Mathf.Clamp01(approach * deltaTime);
             _controlVelocity = new Vector3(steered.x, 0f, steered.z);
@@ -334,43 +339,19 @@ namespace Flame_n_Blame_Challenge.Domain
         private void ApplyDrag(float deltaTime)
         {
             // Drag is a horizontal-plane rule: the vertical channel is kept by gravity and terminal
-            // velocity, and ground contact already owns vertical momentum.
+            // velocity, and ground contact already owns vertical momentum. Grounded, the ground's reaction
+            // eats the body's momentum at the ONE authored ground rate, the same rate that ramps the control
+            // (D-038); airborne, a launch keeps its inertia through the flight at `AirDrag` (D-016).
             float retained = IsGrounded
-                ? Mathf.Max(0f, 1f - _physics.GroundDrag * deltaTime)
+                ? Mathf.Max(0f, 1f - _physics.GroundFriction * deltaTime)
                 : Mathf.Max(0f, 1f - _physics.AirDrag * deltaTime);
 
             _pushVelocity.x *= retained;
             _pushVelocity.z *= retained;
         }
 
-        /// Grounded, the ground's reaction force is real, so the player's legs act on the body's momentum:
-        /// running **against** a shove eats it at `GroundFriction` — the same rate that kills the player's
-        /// own speed — on top of `GroundDrag`, so a 10 m/s shove is gone in about a tenth of a second and
-        /// the player runs full speed. Running **with** the shove eats nothing and adds nothing: the sign of
-        /// the dot product is the whole rule, no input leaves T13's pure `GroundDrag` decay untouched
-        /// (D-036).
-        private void AbsorbCounterRun(float deltaTime)
-        {
-            if (IsGrounded == false)
-                return;
-
-            Vector3 desired = _movement.DesiredVelocity;
-            if (desired.sqrMagnitude < 0.0001f)
-                return;
-
-            Vector3 shoveAxis = ShoveAxis();
-            if (shoveAxis.sqrMagnitude < 0.0001f)
-                return;
-
-            if (Vector3.Dot(shoveAxis, desired.normalized) >= 0f)
-                return;   // with the shove: the speed stays the shove's
-
-            float along = Vector3.Dot(_pushVelocity, shoveAxis);
-            _pushVelocity -= shoveAxis * (along * Mathf.Max(0f, 1f - _physics.GroundFriction * deltaTime));
-        }
-
         /// The shove's direction on the horizontal plane, `Vector3.zero` when there is no momentum to
-        /// fight. Both the air clamp and the counter-run read it, so the rule reads the same axis twice.
+        /// fight. The air clamp reads it, so the rule reads the same axis the shove left behind.
         private Vector3 ShoveAxis()
         {
             Vector3 shove = new Vector3(_pushVelocity.x, 0f, _pushVelocity.z);

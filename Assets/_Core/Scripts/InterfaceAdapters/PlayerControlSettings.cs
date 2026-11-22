@@ -23,15 +23,12 @@ namespace Flame_n_Blame_Challenge.Adapters
             + "(D-016)."), SerializeField]
         public float PlayerSpeedInAir { get; private set; } = 2f;
 
-        [field: Header("Steering (approach rate per second)")]
-        [field: Tooltip("How fast the ground control reaches the input speed. 20 is about a quarter second "
-            + "from rest to full walk speed. Above `GroundFriction` is unphysical: the legs cannot push "
-            + "harder than the ground's reaction."), SerializeField]
-        public float GroundAcceleration { get; private set; } = 20f;
-
-        [field: Tooltip("The same approach in flight. Smaller than GroundAcceleration: a player cannot steer "
-            + "as hard in the air as on the ground, and in flight control never adds to a shove (D-036)."),
-            SerializeField]
+        [field: Header("Steering in flight (approach rate per second)")]
+        [field: Tooltip("How fast the airborne control reaches the input speed. The ground's ramp is authored "
+            + "as `GroundFriction` in `Physics Settings.asset` - the reaction force the legs push against, one "
+            + "number for the ground (D-038) - so this port owns only the rate in flight, where there is no "
+            + "reaction: 6 reaches the reduced air speed in about a third of a second, and in flight control "
+            + "never adds to a shove (D-036)."), SerializeField]
         public float AirAcceleration { get; private set; } = 6f;
 
         [field: Header("Look")]

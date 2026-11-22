@@ -12,7 +12,9 @@ namespace Flame_n_Blame_Challenge.Tests
     /// assertions use a 0.2 tolerance: one tick of gravity (10/60 = 0.1667) is the discretization floor of
     /// a tick-integrated force, and the analytic number is the integral, not the sum of ticks.
     /// T14 asserts the forward carry of D-034: `JumpCarry * ControlVelocity` in the push channel, the height
-    /// untouched, the cap applied, the decay analytic.
+    /// untouched, the cap applied, the decay analytic. The carry is added on a grounded tick, so the ground's
+    /// ONE rate (D-038) takes its share off the jump tick — every carry expectation names `GroundFriction`,
+    /// and none of them assumes the ground is inertial.
     public class PlayerJumpTests
     {
         private const float Dt = 1f / 60f;
@@ -29,14 +31,14 @@ namespace Flame_n_Blame_Challenge.Tests
         public void SetUp()
         {
             // The stub jump is Force 400 N, flat envelope, Duration 1 s; Mass 20 and Gravity 10 make the
-            // launch (400/20 - 10) * 1 = 10 m/s, hand-checkable. Zero drags and GroundedGravity 0 keep the
-            // vertical channel readable.
+            // launch (400/20 - 10) * 1 = 10 m/s, hand-checkable. AirDrag 0 and GroundedGravity 0 keep the
+            // vertical channel readable. The ground rate stays the stub's 12: a running jump's carry is eaten
+            // by the ground on the tick it is added (D-038), so every carry expectation names that rate.
             _physics = new StubPhysics
             {
                 Gravity = 10f,
                 GroundedGravity = 0f,
                 AirDrag = 0f,
-                GroundDrag = 0f,
                 MaxPushSpeed = 100f
             };
             _control = new StubControl();
@@ -243,11 +245,11 @@ namespace Flame_n_Blame_Challenge.Tests
             float walked = _player.Motion.ControlVelocity.x;
             Assert.Greater(walked, 4.9f, "the run-up has reached the authored walk speed");
 
-            PressAndFire();
-            Tick(1, true);
+            PressAndFire();   // the jump fires on the last tick of this pair
 
-            Assert.AreEqual(walked, _player.Motion.PushVelocity.x, 0.02f,
-                "JumpCarry 1 carries the player's own speed, the direction is straight up");
+            Assert.AreEqual(walked * (1f - _physics.GroundFriction * Dt), _player.Motion.PushVelocity.x, 0.02f,
+                "JumpCarry 1 carries the player's own speed, and the ground's ONE rate eats it on the tick "
+                + "it is added (D-038)");
 
             Tick(59, true);
             Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
@@ -272,7 +274,9 @@ namespace Flame_n_Blame_Challenge.Tests
                 Tick(1, true);
 
                 carries[run] = _player.Motion.PushVelocity.x;
-                Assert.AreEqual(speed, carries[run], 0.02f, "the carry is the speed the player had (run " + run + ")");
+                Assert.AreEqual(speed * (1f - _physics.GroundFriction * Dt), carries[run], 0.02f,
+                    "the carry is the speed the player had, decayed by the ground's one rate on the jump tick (run "
+                    + run + ")");
             }
 
             Assert.Greater(carries[1], carries[0], "a sprint carries more than a walk");
@@ -313,15 +317,17 @@ namespace Flame_n_Blame_Challenge.Tests
             Tick(60, true);
             float carried = _player.Motion.ControlVelocity.x;
 
+            float carryAfterGroundTick = carried * (1f - _physics.GroundFriction * Dt);
             PressAndFire();
-            Assert.Greater(_player.Motion.PushVelocity.x, carried * 0.9f, "the carry is there on the jump tick");
+            Assert.Greater(_player.Motion.PushVelocity.x, carryAfterGroundTick * 0.9f,
+                "the carry is there on the jump tick, after the ground took its own rate off it (D-038)");
 
             const int flight = 60;
             Tick(flight, false);
 
-            float expected = carried * Mathf.Pow(1f - _physics.AirDrag * Dt, flight);
+            float expected = carryAfterGroundTick * Mathf.Pow(1f - _physics.AirDrag * Dt, flight);
             Assert.AreEqual(expected, _player.Motion.PushVelocity.x, 0.05f,
-                "the carry flies and decays by AirDrag alone");
+                "the carry flies and decays by AirDrag alone, once the ground tick is accounted for");
             Assert.Greater(_player.Motion.VerticalVelocity, 0f, "the launch is still rising, so the flight is real");
         }
 

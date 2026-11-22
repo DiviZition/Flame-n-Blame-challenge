@@ -11,10 +11,10 @@ namespace Flame_n_Blame_Challenge.Adapters
         float PlayerSpeedSprint { get; }
         float PlayerSpeedInAir { get; }
 
-        /// The rates the player's own effort approaches its command at, grounded and airborne. The airborne
-        /// rate is lower because a jump's momentum is carried in the push channel, not steered here (D-016),
-        /// and in flight control never adds to a shove (D-036).
-        float GroundAcceleration { get; }
+        /// The airborne approach rate. Grounded, the ramp is `IPhysicsSettings.GroundFriction` - the reaction
+        /// force the legs push against, so the ground has one number (D-038) - and this port owns only the
+        /// rate in flight, where there is no reaction: a jump's momentum is carried in the push channel, not
+        /// steered here (D-016), and in flight control never adds to a shove (D-036).
         float AirAcceleration { get; }
 
         float LookSensitivity { get; }

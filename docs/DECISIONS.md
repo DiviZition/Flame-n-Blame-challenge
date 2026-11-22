@@ -792,3 +792,47 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
   (TODO, agreed with the user 2026-11-22): `GroundFriction` is μN/Mass and `GroundDrag` is the same force seen
   through a second channel, so one ground rate on the **total** horizontal momentum is the honest shape — that
   pass deletes `GroundDrag`, folds the user's 8 into `GroundFriction`'s ceiling, and re-signs T13/T15c.
+
+## D-038: The ground has ONE authored force — `GroundFriction` ramps the run, stops it, and eats a shove
+- **Date:** 2026-11-22
+- **Status:** Accepted (the user's rule: *"за трение с поверхностью отвечал один параметр. Иначе это очень сложно
+  настраивать, тестировать и вообще код становится сложнее"*; the merge was proposed in the previous session and
+  the user approved it, so this entry names the shape, not the idea).
+- **Context:** Three authored numbers described **one** force: `GroundFriction` (μN/Mass, 12) stopped the
+  control on input release, `GroundDrag` (the user's tuned 8) decayed the shove, `GroundAcceleration` (20)
+  ramped the run. The wall between `GroundFriction` and `GroundDrag` is exactly what D-020 named as the ice
+  symptom, and D-020's own note ("share the rate and a snappy stop-press drags the shove to a halt too") is the
+  argument for keeping them apart. The wall did not hold: `GroundAcceleration` 20 > μ 12 is unphysical — the
+  legs cannot push harder than the ground's reaction — so the effective ground rate was `min(20, 12)` = 12 all
+  along, two numbers had to be tuned against each other, and D-036 added a **sign rule** (the dot product of
+  the shove axis and the input) so a counter-run ate the shove at 12 **on top of** 8, giving 16/s one way and
+  4/s the other. The Inspector, the tests and the tuning all paid for that split.
+- **Decision:**
+  1. **`GroundFriction` is the ground's single rate** (μN/Mass, m/s²). Grounded, one number does three jobs:
+     it ramps `ControlVelocity` toward `DesiredVelocity`, it brings the control to rest when the input is
+     released, and it eats the momentum in the push channel — **in every direction**.
+  2. **`GroundDrag` and `GroundAcceleration` are deleted** — from `IPhysicsSettings`/`IControlSettings`,
+     `PhysicsSettings`/`PlayerControlSettings`, both assets, and the stubs. A ramp rate that is always clamped
+     by μ is a number with no effect: dead surface (D-033).
+  3. **`AbsorbCounterRun` (19 lines) and the sign rule are deleted.** `ShoveAxis()` stays for the air clamp
+     only — D-036's air half survives unchanged (control's component along a shove is removed in flight,
+     steering across keeps `PlayerSpeedInAir`). The ground rule is `ApplyDrag` at the same rate
+     `ApplyInputControl` uses.
+  4. **Authored value 8** — the user's tuned `GroundDrag` becomes the ground's rate: 0→5 m/s in 0.63 s, a
+     10 m/s shove gone inside a second, 0→8 m/s sprint in 1 s. One knob: raise it for a snappier start and a
+     harder stop, lower it toward 2 for a long skid.
+- **Why:** μN/Mass is **one force**; the channels are the model's bookkeeping, not physics. A player running
+  with a shove cannot keep the excess speed, because the excess is slip, and friction eats slip — which is the
+  same fact D-036 wrote for the air (a player cannot push against nothing) read from the ground side. A ground
+  with three numbers is not tunable, and the user's rule for authoring is that one behaviour gets one knob.
+- **Consequences:** `ApplyInputControl`'s rate is one line (`GroundFriction` grounded, `AirAcceleration`
+  airborne, 0 in the air on release), `ApplyDrag` is the same rate, and the step order is
+  contact → jump → gravity → pushes → control → drag → cap → sum. `IPhysicsSettings` is 8 fields,
+  `IControlSettings` 5. Tests re-signed, all analytic: **T3** (the ground eats horizontal momentum from the
+  first grounded tick, not on landing as a switch), **T5** (the shove keeps its channel, decayed by one ground
+  tick), **T13** (the asymmetry is `AirDrag` vs `GroundFriction`, one rate per contact state), **T15c** (the
+  same rate eats the shove in both directions, the run reaches full speed), **T14b/T14c/T14e** (the jump's
+  carry is eaten by the ground on the jump tick, then by `AirDrag` in flight). D-020's two-rate split and
+  D-036's ground half are **superseded**; the air clamp stands. `unity cmd script recompile` → 0 errors,
+  `unity cmd test run --mode editor` → **27 tests, 27 passed**. The feel verdict the user was playing for is
+  now a single number to play with: `GroundFriction` 8.

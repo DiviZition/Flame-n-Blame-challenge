@@ -11,14 +11,14 @@
         float GroundedGravity { get; }
         float TerminalVelocity { get; }
 
-        /// The ground's reaction force, m/s². It decelerates the player's own control when the input is
-        /// released, and since D-036 it eats the momentum a shove leaves behind when the player runs against
-        /// it. One contact force, so one number.
+        /// The ground's **one** reaction force, m/s² (μN/Mass). The legs can only push against it, so the same
+        /// rate ramps the player's control to its commanded speed, brings the control to rest when the input
+        /// is released, and eats the momentum a shove leaves behind - in every direction (D-038). One contact
+        /// force, so one number.
         float GroundFriction { get; }
 
-        /// The push channel's two decay rates: `GroundDrag` absorbs a shove on the ground, `AirDrag` carries
-        /// its inertia in flight. One rate for both is what makes the ground read as ice (G-012).
-        float GroundDrag { get; }
+        /// The airborne decay rate: the inertia of a launch during flight, which is the whole point of D-016
+        /// (the air has no reaction force, so it absorbs nothing the player commands).
         float AirDrag { get; }
 
         /// The push channel's cap, m/s, 0 = no cap.

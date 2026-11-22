@@ -9,8 +9,8 @@ namespace Flame_n_Blame_Challenge.Tests
     /// requirements, never read off the implementation, so a broken model fails them - a duration-
     /// authoritative velocity model, a push that overwrites input, a spray that stacks, all fail here.
     /// Nothing touches PlayerMotor, position, or CollisionFlags: the domain public API is the surface.
-    /// T15 adds the contact-authority rules of D-036: in the air control never adds to a shove, on the
-    /// ground running against a shove eats it and running with it eats nothing.
+    /// T15 adds the contact-authority rules: in the air control never adds to a shove (D-036), and on the
+    /// ground the ONE authored rate eats the shove in every direction while the run reaches full speed (D-038).
     public class PlayerMotionTests
     {
         private const float Dt = 1f / 60f;
@@ -108,7 +108,6 @@ namespace Flame_n_Blame_Challenge.Tests
         {
             SetUp();
             _physics.AirDrag = 0f;
-            _physics.GroundDrag = 0f;
             _physics.MaxPushSpeed = 100f;
             _input.InputDirection = new Vector2(1f, 0f);
 
@@ -120,14 +119,16 @@ namespace Flame_n_Blame_Challenge.Tests
             return new Vector3(_motion.ControlVelocity.x, 0f, _motion.PushVelocity.z);
         }
 
-        // T3 - landing absorbs the vertical momentum and returns to the authored grounded gravity,
-        // without eating the horizontal momentum carried into the landing.
+        // T3 - landing zeroes the vertical momentum to the authored grounded rest value, and the ground takes
+        // over the horizontal momentum on the same tick: the ground's ONE rate acts on the body's momentum,
+        // not only on the control, so a shove carried into a landing decays from the first grounded tick
+        // (D-038). The vertical half is the D-030 rule; the horizontal half is the ground rate, and one
+        // model that survives both is the one-rate-for-both-states model the air half already pins.
         [Test]
-        public void Landing_KillsVerticalMomentum_AndKeepsHorizontalMomentum()
+        public void Landing_KillsVerticalMomentum_AndStartsEatingHorizontalMomentum()
         {
             _physics.Gravity = 20f;
             _physics.AirDrag = 0f;
-            _physics.GroundDrag = 0f;
             _physics.MaxPushSpeed = 100f;
 
             Tick(10, false);
@@ -136,12 +137,14 @@ namespace Flame_n_Blame_Challenge.Tests
             _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 120f), Vector3.forward);
             TickOnce(false, Vector3.zero);
             float carried = _motion.PushVelocity.z;
+            Assert.Greater(carried, 5.9f, "the shove is airborne, so AirDrag 0 keeps it whole");
 
             TickOnce(true, Vector3.up);
 
             Assert.AreEqual(_physics.GroundedGravity - _physics.Gravity * Dt, _motion.VerticalVelocity, Tolerance,
                 "the ground absorbs the fall momentum");
-            Assert.AreEqual(carried, _motion.PushVelocity.z, Tolerance, "landing must not absorb horizontal momentum");
+            Assert.AreEqual(carried * (1f - _physics.GroundFriction * Dt), _motion.PushVelocity.z, Tolerance,
+                "the ground eats the horizontal momentum at its own rate on the first grounded tick (D-038)");
         }
 
         // T4 - a launch follows the direction the SOURCE gave, not the player's facing. Same push, four
@@ -174,23 +177,27 @@ namespace Flame_n_Blame_Challenge.Tests
             }
         }
 
-        // T5 - pushes add to the player's own movement, never replace it. Walking east, shoved north:
-        // both components survive.
+        // T5 - pushes add to the player's own movement, never replace it. Walking east, shoved north: the
+        // control survives the shove whole, and the shove keeps its own channel (the ground eats part of it in
+        // one tick, the analytic rate, which is the D-038 rule, not an accident of the test).
         [Test]
         public void Pushes_AddToMovement_TheyNeverReplaceIt()
         {
             _physics.AirDrag = 0f;
-            _physics.GroundDrag = 0f;
             _physics.MaxPushSpeed = 100f;
             _input.InputDirection = new Vector2(1f, 0f);
 
             Tick(60, true);
             float walkedEast = _motion.ControlVelocity.x;
+            Assert.AreEqual(_control.PlayerSpeedBase, walkedEast, 0.01f,
+                "the ground ramps the run to the authored walk speed at `GroundFriction` (D-038)");
 
+            float shove = 60f / _physics.Mass;
             _motion.ApplyPush(Presets.Impulse(PushType.ExtinguisherShove, 60f), Vector3.forward);
             TickOnce(true, Vector3.up);
 
-            Assert.Greater(_motion.PushVelocity.z, 2.5f, "the shove is applied");
+            Assert.AreEqual(shove * (1f - _physics.GroundFriction * Dt), _motion.PushVelocity.z, Tolerance,
+                "the shove is in its own channel, decayed by the ground's one rate for one tick (D-038)");
             Assert.AreEqual(walkedEast, _motion.ControlVelocity.x, Tolerance,
                 "the shove must not steal the player's own movement");
         }
@@ -257,7 +264,6 @@ namespace Flame_n_Blame_Challenge.Tests
         {
             SetUp();
             _physics.AirDrag = airDrag;
-            _physics.GroundDrag = 0f;
             _physics.MaxPushSpeed = cap;
 
             const int refireEvery = 6, ticks = 600;
@@ -347,7 +353,6 @@ namespace Flame_n_Blame_Challenge.Tests
             // Authored numbers are read when the domain is constructed (they come from an asset and do
             // not change mid-session, D-012), so a degenerate Mass is a player built with that Mass.
             _physics.AirDrag = 0f;
-            _physics.GroundDrag = 0f;
             _physics.MaxPushSpeed = 0f;
             Rebuild(0f);
 
@@ -397,33 +402,39 @@ namespace Flame_n_Blame_Challenge.Tests
 
         // T13 - the requirement behind "the player slides like the ground is ice": the ground must absorb
         // a shove and the air must not. Same shove, same elapsed time, two contact states. A model with
-        // one decay rate for both - which is what the first cut had - fails the second expectation.
+        // one decay rate for both - which is what the first cut had - fails the second expectation, and a
+        // model that splits the ground force into two rates is the split D-038 deleted.
         [Test]
         public void GroundContact_AbsorbsAShove_TheAirDoesNot()
         {
             const int ticks = 60;
             const float shove = 10f;
 
-            float inAir = RunAShove(shove, 0.5f, false);
-            float onGround = RunAShove(shove, 4f, true);
+            float inAir = RunAShove(shove, 0.5f, false);       // the authored AirDrag
+            float onGround = RunAShove(shove, 12f, true);      // the stub's one ground rate
 
             Assert.AreEqual(shove * Mathf.Pow(1f - 0.5f / 60f, ticks), inAir, 0.05f,
                 "in the air the shove keeps its inertia, decaying only by AirDrag (D-016)");
-            Assert.AreEqual(shove * Mathf.Pow(1f - 4f / 60f, ticks), onGround, 0.05f,
-                "on the ground it decays by the authored GroundDrag");
+            Assert.AreEqual(shove * Mathf.Pow(1f - 12f / 60f, ticks), onGround, 0.05f,
+                "on the ground the ONE authored rate `GroundFriction` eats it (D-038)");
 
             Assert.Greater(inAir, 1f, "the air must keep the player flying (U1)");
             Assert.Less(onGround, 0.5f, "the ground must have absorbed it inside a second: no ice");
         }
 
-        /// One shove of shove m/s (Force = shove * Mass, the stub's authored Mass is 20), for one second,
-        /// in one contact state. Returns how much of the shove is left.
-        private float RunAShove(float shove, float dragRate, bool grounded)
+        /// One shove of `shove` m/s (Force = shove * Mass, the stub's authored Mass is 20), for one second,
+        /// in one contact state. `rate` is the authored rate of that state - `AirDrag` in flight,
+        /// `GroundFriction` on the ground - so both expectations read the same geometric decay from the port
+        /// that owns it, and no rate is invented for the test.
+        private float RunAShove(float shove, float rate, bool grounded)
         {
             SetUp();
             _physics.MaxPushSpeed = 100f;
-            _physics.GroundDrag = grounded ? dragRate : 0f;
-            _physics.AirDrag = grounded ? 0f : dragRate;
+
+            if (grounded)
+                _physics.GroundFriction = rate;
+            else
+                _physics.AirDrag = rate;
 
             _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _physics.Mass), Vector3.forward);
 
@@ -454,7 +465,6 @@ namespace Flame_n_Blame_Challenge.Tests
         public void AirborneRun_AlongAShove_AddsNothing_TheSpeedIsTheShoves()
         {
             _physics.AirDrag = 0f;
-            _physics.GroundDrag = 0f;
             _physics.MaxPushSpeed = 100f;
 
             Tick(1, true);
@@ -475,7 +485,6 @@ namespace Flame_n_Blame_Challenge.Tests
         public void AirborneRun_AcrossAShove_KeepsItsOwnAirSpeed()
         {
             _physics.AirDrag = 0f;
-            _physics.GroundDrag = 0f;
             _physics.MaxPushSpeed = 100f;
 
             Tick(1, true);
@@ -489,12 +498,13 @@ namespace Flame_n_Blame_Challenge.Tests
                 "steering across a shove is the player's own air speed");
         }
 
-        // T15c - the ground rule (D-036): the ground's reaction is a real force, so running AGAINST a shove
-        // eats it at `GroundFriction` on top of `GroundDrag`; running WITH it eats nothing. Two runs, one
-        // shove: the sign of the dot product is the only difference, and the expectations are the two
-        // analytic decays. The rate is authored (`GroundFriction`), not invented.
+        // T15c - the ground rule (D-038): the ground's reaction is a real force, so it acts on the body's
+        // momentum. Shoved forward, run AGAINST it and run WITH it: the ONE authored rate eats the shove in
+        // both directions (no sign rule, no second ground rate), the player's own run reaches full speed in
+        // both, and the total is the run plus whatever of the shove is left. Two runs, one shove, and the two
+        // analytic decays are the same number.
         [Test]
-        public void CounterRunEatsAShove_TheSameDirectionDoesNot()
+        public void GroundedRun_EatsAShoveAtTheGroundRate_InBothDirections()
         {
             const float shove = 10f;
             const int ticks = 60;
@@ -502,19 +512,18 @@ namespace Flame_n_Blame_Challenge.Tests
             float[] against = RunGroundShove(shove, ticks, new Vector2(0f, -1f));
             float[] with = RunGroundShove(shove, ticks, new Vector2(0f, 1f));
 
-            float eaten = shove * Mathf.Pow(1f - (_physics.GroundDrag + _physics.GroundFriction) / 60f, ticks);
-            Assert.AreEqual(eaten, against[0], 0.05f, "the counter-run eats the shove at the ground friction rate");
+            float eaten = shove * Mathf.Pow(1f - _physics.GroundFriction / 60f, ticks);
+            Assert.AreEqual(eaten, against[0], 0.05f, "the counter-run eats the shove at the ONE ground rate");
+            Assert.AreEqual(eaten, with[0], 0.05f, "running WITH a shove decays at the same rate: no boost, no extra decay");
             Assert.Less(against[0], 0.5f, "the shove is gone inside a second: the player can run");
-            Assert.AreEqual(-_control.PlayerSpeedBase, against[1], 0.01f, "the run itself is full speed");
 
-            float plain = shove * Mathf.Pow(1f - _physics.GroundDrag / 60f, ticks);
-            Assert.AreEqual(plain, with[0], 0.05f,
-                "running WITH a shove adds no extra decay, and no extra acceleration (D-036)");
-            Assert.AreEqual(_control.PlayerSpeedBase, with[1], 0.01f, "the player runs normally alongside it");
+            Assert.AreEqual(-_control.PlayerSpeedBase, against[1], 0.01f, "the run against the shove is full speed");
+            Assert.AreEqual(_control.PlayerSpeedBase, with[1], 0.01f, "the run with the shove is full speed");
         }
 
-        /// One shove of `shove` m/s along +z, grounded for `ticks`, running in `run`: returns the shove
-        /// left and the player's own control on the same axis.
+        /// One shove of `shove` m/s along +z, grounded for `ticks`, running in `run`: returns the shove left
+        /// and the player's own control on the same axis. The ground's ONE rate eats the shove and ramps the
+        /// run, so both expectations come from `GroundFriction` (the stub's 12, D-038).
         private float[] RunGroundShove(float shove, int ticks, Vector2 run)
         {
             SetUp();

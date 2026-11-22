@@ -28,16 +28,13 @@ namespace Flame_n_Blame_Challenge.Adapters
         public float TerminalVelocity { get; private set; } = 40f;
 
         [field: Header("Contact & damping")]
-        [field: Tooltip("The ground's reaction force, m/s². It decelerates the player's own control when the "
-            + "input is released, and eats the momentum of a shove when the player runs against it (D-036). "
-            + "One contact force, so one number."), SerializeField]
-        public float GroundFriction { get; private set; } = 12f;
-
-        [field: Tooltip("Grounded push decay per second. 4 drops a 10 m/s shove to walk speed in about an "
-            + "eighth of a second and to rest inside a second; drop toward 1 for a long skid, raise past 8 for "
-            + "a hard stop. One rate for ground and air is what makes the floor read as ice (G-012)."),
+        [field: Tooltip("The ground's ONE reaction force, m/s² (μN/Mass). The legs push against it, so this "
+            + "single number ramps the run to the commanded speed (0→5 m/s in 0.63 s at 8), brings the run to "
+            + "rest when the input is released, and eats a shove's momentum in every direction (a 10 m/s shove "
+            + "is gone inside a second at 8). Raise it for a snappier start and a harder stop, lower it toward "
+            + "2 for a long skid; one rate for ground and air is what makes the floor read as ice (G-012)."),
             SerializeField]
-        public float GroundDrag { get; private set; } = 4f;
+        public float GroundFriction { get; private set; } = 8f;
 
         [field: Tooltip("Airborne push decay per second - the inertia of a launch during flight, which is the "
             + "whole point of D-016. 0.5 keeps a shove alive for seconds."), SerializeField]
