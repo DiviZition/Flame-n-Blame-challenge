@@ -93,6 +93,17 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [ ] **Launch-survives-ground test** (with the feel pass, D-026): a weak jet (300 N, < `Mass·Gravity`)
   stays absorbed on the ground; a 2000 N launch accumulates through grounded ticks and rises. Written only
   after the user approves the feel.
+- [ ] **Feel pass on the counter-run** (D-036): play a hydrant shove + run against it, and a shove + run
+  with it. The rule reuses `GroundFriction` (12/s), so the absorption rate is not authored separately; if the
+  feel wants it its own knob, add `CounterAbsorb` to `IGameSettings`/`GameSettings` and the test is re-run,
+  not re-argued (D-026).
+- [x] 2026-11-22 — **Ice fix: contact gives control authority over momentum** (D-036): in the air the
+  component of `ControlVelocity` **along** a shove is removed every tick (running with a launch adds nothing,
+  steering across keeps `PlayerSpeedInAir`); on the ground running **against** a shove eats it at
+  `GroundFriction` on top of `GroundDrag` (16/s → a 10 m/s shove is gone in ~0.1 s), running **with** it eats
+  nothing. The sign of `Dot(shoveAxis, desired)` is the whole rule; `GroundFriction` is reused, no new field.
+  **T15a-T15c** (air clamp, steering across, the two decays) → **27 tests, 27 passed**; the 24 existing pass
+  through the rule's early exits, so the suite is a witness, not a victim.
 - [x] 2026-11-22 — **`GameSettings` Inspector grouped, Odin not taken** (D-035): Unity `[field: Header]` +
   `[Tooltip]` in `GameSettings.cs` (Locomotion / Steering / Body & gravity / Jump / Push channel / Look),
   every number has its unit and what it decides. The dead `<JumpPreset>` block (78 lines, the type is gone

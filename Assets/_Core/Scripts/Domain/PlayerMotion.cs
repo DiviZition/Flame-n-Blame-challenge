@@ -36,6 +36,14 @@ namespace Flame_n_Blame_Challenge.Domain
     /// `AirDrag` while airborne (the inertia of a launch during flight, which is the whole point of D-016).
     /// One rate for both is what makes the ground read as ice (G-012).
     ///
+    /// Contact decides the **authority of the player's own effort** over that momentum, which is the rest
+    /// of the ice rule (D-036). Airborne, the legs have no ground to push against: control keeps its own
+    /// air speed and can never add to a shove, so the component of `ControlVelocity` along the shove is
+    /// removed in flight — the speed in the shove's direction is the shove's. Grounded, the ground's
+    /// reaction is a real force, so running **against** a shove eats it at `GroundFriction` on top of
+    /// `GroundDrag`; running **with** a shove eats nothing and adds nothing, and the sign of the dot
+    /// product is the whole rule. No input leaves the pure `GroundDrag` decay of T13 intact.
+    ///
     /// Perf budget (TODO.md, written before code): 8 simultaneous pushes, no per-tick allocation,
     /// < 0.05 ms per player per tick.
     public class PlayerMotion : IUpdatable
@@ -199,6 +207,7 @@ namespace Flame_n_Blame_Challenge.Domain
             TickPushes(deltaTime);
             ApplyInputControl(deltaTime);
             ApplyDrag(deltaTime);
+            AbsorbCounterRun(deltaTime);
             ClampPushVelocity();
 
             Velocity = _controlVelocity + _pushVelocity + Vector3.up * _verticalVelocity;
@@ -305,6 +314,18 @@ namespace Flame_n_Blame_Challenge.Domain
 
             Vector3 steered = current + (desired - current) * Mathf.Clamp01(approach * deltaTime);
             _controlVelocity = new Vector3(steered.x, 0f, steered.z);
+
+            // Airborne, the legs have no ground to push against, so control has no authority over momentum:
+            // it can steer its own authored air speed, it can never add to a shove. The component along the
+            // shove is removed, so the speed in the shove's direction stays the shove's and running with a
+            // launch in flight reads as one flight, not as a boost (D-036).
+            if (IsGrounded == false)
+            {
+                Vector3 shoveAxis = ShoveAxis();
+                float along = Vector3.Dot(_controlVelocity, shoveAxis);
+                if (along > 0f)
+                    _controlVelocity -= shoveAxis * along;
+            }
         }
 
         private void ApplyDrag(float deltaTime)
@@ -317,6 +338,40 @@ namespace Flame_n_Blame_Challenge.Domain
 
             _pushVelocity.x *= retained;
             _pushVelocity.z *= retained;
+        }
+
+        /// Grounded, the ground's reaction force is real, so the player's legs act on the body's momentum:
+        /// running **against** a shove eats it at `GroundFriction` — the same rate that kills the player's
+        /// own speed — on top of `GroundDrag`, so a 10 m/s shove is gone in about a tenth of a second and
+        /// the player runs full speed. Running **with** the shove eats nothing and adds nothing: the sign of
+        /// the dot product is the whole rule, no input leaves T13's pure `GroundDrag` decay untouched
+        /// (D-036).
+        private void AbsorbCounterRun(float deltaTime)
+        {
+            if (IsGrounded == false)
+                return;
+
+            Vector3 desired = _movement.DesiredVelocity;
+            if (desired.sqrMagnitude < 0.0001f)
+                return;
+
+            Vector3 shoveAxis = ShoveAxis();
+            if (shoveAxis.sqrMagnitude < 0.0001f)
+                return;
+
+            if (Vector3.Dot(shoveAxis, desired.normalized) >= 0f)
+                return;   // with the shove: the speed stays the shove's
+
+            float along = Vector3.Dot(_pushVelocity, shoveAxis);
+            _pushVelocity -= shoveAxis * (along * Mathf.Max(0f, 1f - _settings.GroundFriction * deltaTime));
+        }
+
+        /// The shove's direction on the horizontal plane, `Vector3.zero` when there is no momentum to
+        /// fight. Both the air clamp and the counter-run read it, so the rule reads the same axis twice.
+        private Vector3 ShoveAxis()
+        {
+            Vector3 shove = new Vector3(_pushVelocity.x, 0f, _pushVelocity.z);
+            return shove.sqrMagnitude > 0.0001f ? shove.normalized : Vector3.zero;
         }
 
         private void ClampPushVelocity()

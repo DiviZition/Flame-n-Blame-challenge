@@ -9,6 +9,8 @@ namespace Flame_n_Blame_Challenge.Tests
     /// requirements, never read off the implementation, so a broken model fails them - a duration-
     /// authoritative velocity model, a push that overwrites input, a spray that stacks, all fail here.
     /// Nothing touches PlayerMotor, position, or CollisionFlags: the domain public API is the surface.
+    /// T15 adds the contact-authority rules of D-036: in the air control never adds to a shove, on the
+    /// ground running against a shove eats it and running with it eats nothing.
     public class PlayerMotionTests
     {
         private const float Dt = 1f / 60f;
@@ -440,6 +442,90 @@ namespace Flame_n_Blame_Challenge.Tests
             _look = new PlayerLookRotator(_input, _settings);
             _movement = new PlayerMovement(_input, _settings, _look);
             _motion = new PlayerMotion(_movement, _settings, _presets);
+        }
+
+        // T15a - the air rule (D-036): a player cannot push against nothing, so control has no authority
+        // over momentum in flight. Shoved forward, running forward in the air: the total speed stays the
+        // shove's. The expectation is analytic - the shove axis is the input axis, so the clamp zeroes the
+        // control component exactly, and AirDrag 0 pins the momentum at 10.
+        [Test]
+        public void AirborneRun_AlongAShove_AddsNothing_TheSpeedIsTheShoves()
+        {
+            _settings.AirDrag = 0f;
+            _settings.GroundDrag = 0f;
+            _settings.MaxPushSpeed = 100f;
+
+            Tick(1, true);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _settings.Mass), Vector3.forward);
+
+            _input.InputDirection = new Vector2(0f, 1f);   // running WITH the shove, the same axis
+            Tick(60, false);
+
+            Assert.AreEqual(10f, _motion.PushVelocity.z, Tolerance, "the momentum is intact in the air");
+            Assert.AreEqual(0f, _motion.ControlVelocity.z, Tolerance,
+                "control adds nothing along a shove in flight: no boost, no second launch");
+            Assert.AreEqual(10f, _motion.Velocity.z, Tolerance, "the speed in the shove's direction is the shove's");
+        }
+
+        // T15b - the clamp is a projection, not a suppression: steering ACROSS a shove is the player's own
+        // air control (PlayerSpeedInAir), and must survive. Shoved forward, running right in the air.
+        [Test]
+        public void AirborneRun_AcrossAShove_KeepsItsOwnAirSpeed()
+        {
+            _settings.AirDrag = 0f;
+            _settings.GroundDrag = 0f;
+            _settings.MaxPushSpeed = 100f;
+
+            Tick(1, true);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _settings.Mass), Vector3.forward);
+
+            _input.InputDirection = new Vector2(1f, 0f);   // running across the shove
+            Tick(60, false);
+
+            Assert.AreEqual(10f, _motion.Velocity.z, Tolerance, "the shove flies on, untouched");
+            Assert.AreEqual(_settings.PlayerSpeedInAir, _motion.Velocity.x, 0.01f,
+                "steering across a shove is the player's own air speed");
+        }
+
+        // T15c - the ground rule (D-036): the ground's reaction is a real force, so running AGAINST a shove
+        // eats it at `GroundFriction` on top of `GroundDrag`; running WITH it eats nothing. Two runs, one
+        // shove: the sign of the dot product is the only difference, and the expectations are the two
+        // analytic decays. The rate is authored (`GroundFriction`), not invented.
+        [Test]
+        public void CounterRunEatsAShove_TheSameDirectionDoesNot()
+        {
+            const float shove = 10f;
+            const int ticks = 60;
+
+            float[] against = RunGroundShove(shove, ticks, new Vector2(0f, -1f));
+            float[] with = RunGroundShove(shove, ticks, new Vector2(0f, 1f));
+
+            float eaten = shove * Mathf.Pow(1f - (_settings.GroundDrag + _settings.GroundFriction) / 60f, ticks);
+            Assert.AreEqual(eaten, against[0], 0.05f, "the counter-run eats the shove at the ground friction rate");
+            Assert.Less(against[0], 0.5f, "the shove is gone inside a second: the player can run");
+            Assert.AreEqual(-_settings.PlayerSpeedBase, against[1], 0.01f, "the run itself is full speed");
+
+            float plain = shove * Mathf.Pow(1f - _settings.GroundDrag / 60f, ticks);
+            Assert.AreEqual(plain, with[0], 0.05f,
+                "running WITH a shove adds no extra decay, and no extra acceleration (D-036)");
+            Assert.AreEqual(_settings.PlayerSpeedBase, with[1], 0.01f, "the player runs normally alongside it");
+        }
+
+        /// One shove of `shove` m/s along +z, grounded for `ticks`, running in `run`: returns the shove
+        /// left and the player's own control on the same axis.
+        private float[] RunGroundShove(float shove, int ticks, Vector2 run)
+        {
+            SetUp();
+            _settings.AirDrag = 0f;
+            _settings.MaxPushSpeed = 100f;
+
+            Tick(1, true);
+            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _settings.Mass), Vector3.forward);
+
+            _input.InputDirection = run;
+            Tick(ticks, true);
+
+            return new[] { _motion.PushVelocity.z, _motion.ControlVelocity.z };
         }
     }
 }

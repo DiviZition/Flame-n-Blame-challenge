@@ -708,3 +708,41 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
   `unity cmd test run --mode editor` → **24/24** (no logic touched), `component get_fields` on the asset →
   16 fields, no `JumpPreset`. Reordering the properties changes the Inspector order only: Unity serializes
   auto-properties by backing-field name, so every authored value survives.
+
+## D-036: Contact decides who has authority over momentum - air control never adds to a shove, a counter-run eats it
+- **Date:** 2026-11-22
+- **Status:** Accepted (the user named the symptom: `it feels like pure sliding on ice`). The feel pass is
+  the user's; the rate reused here (`GroundFriction`) is authored, no new knob was invented.
+- **Context:** `ControlVelocity` and `PushVelocity` are summed and each decays on its own rule, so a shove
+  never learns what the player is doing: run against a 10 m/s shove and the player moves at 5 m/s in the
+  shove's direction while the input says the opposite - the input and the inertia coexist, which is what
+  ice feels like. The user's ask, in two halves: running **with** a shove must not add speed (`the speed
+  must stay only from the shove, at least in the air`), running **against** one must kill it fast on
+  landing and let the player run fully. The first cut of the model had one decay rate for ground and air,
+  and that was the first ice symptom (G-012, fixed by D-020).
+- **Decision:**
+  1. **Airborne, control has no authority over momentum.** The legs have no ground to push against, so
+     the component of `ControlVelocity` **along** the shove is removed every airborne tick: the speed in
+     the shove's direction is the shove's. Steering **across** a shove keeps the player's own
+     `PlayerSpeedInAir` - the clamp is a projection, not a suppression.
+  2. **Grounded, the ground's reaction is a real force**, so the running legs act on the body's momentum:
+     running **against** a shove eats the shove's component along the input at `GroundFriction`, on top of
+     `GroundDrag` (12 + 4 = 16/s, so a 10 m/s shove is gone in about a tenth of a second). Running **with**
+     it eats nothing and adds nothing; the sign of `Vector3.Dot(shoveAxis, desired)` is the whole rule.
+     `MaxPushSpeed` is the ground's guard against added speed.
+  3. **`GroundFriction` is reused, no new authored field.** If the feel pass needs the absorption rate
+     separate from the stop-press rate, `CounterAbsorb` is added then - the same reason `GroundFriction` is
+     authored apart from `GroundDrag` (D-020).
+- **Why:** The same physical fact the vertical rules already use: a force needs something to push against.
+  Airborne, the player's effort has no reaction, so it cannot be a force on the body - which is exactly the
+  `PlayerSpeedInAir` model (D-016) taken to its end. On the ground, friction is the reaction, so it acts on
+  the total momentum, not on one channel. Writing the rule as the sign of a dot product means zero input
+  (`T13`'s pure `GroundDrag` decay) and a perpendicular shove (`T5`'s untouched control) pass through the
+  rule's early exits, not by luck.
+- **Consequences:** `ApplyInputControl` gains a 6-line air clamp, `AbsorbCounterRun` is the new step between
+  drag and cap, and `ShoveAxis()` is the shared axis both read. **T15a-T15c** pin it: the air clamp
+  (`Velocity == the shove`, `ControlVelocity == 0` along it), steering across a shove keeps 2 m/s,
+  counter-run decay `shove*(1-(GroundDrag+GroundFriction)dt)^n` vs the pure `GroundDrag` decay when running
+  with it - all analytic, no invented number. `unity cmd script recompile` → 0 errors,
+  `unity cmd test run --mode editor` → **27 tests, 27 passed** (the 24 existing are untouched: T13, T5, T2,
+  T4, T14e pass through the early exits, so the suite is a witness, not a victim).
