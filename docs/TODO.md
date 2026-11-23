@@ -93,11 +93,13 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [ ] **Launch-survives-ground test** (with the feel pass, D-026): a weak jet (300 N, < `Mass·Gravity`)
   stays absorbed on the ground; a 2000 N launch accumulates through grounded ticks and rises. Written only
   after the user approves the feel.
-- [ ] **Feel pass, one ground number** (the merge D-038 made it one): play a hydrant shove + run **against**
-  it, and a shove + run **with** it, at the authored `GroundFriction` **8** in `Physics Settings.asset`. The
-  `CounterAbsorb` question is closed — the two runs decay at the same rate, and the run ramps at that rate, so
-  the verdict is only the shape of the number: 0→5 m/s in 0.63 s, 0→8 m/s sprint in 1 s, a 10 m/s shove gone
-  inside a second. If the feel wants more, **the number moves, not the code** (D-026).
+- [x] 2026-11-23 — **Feel pass, one ground number** (the merge D-038 made it one): the user played the ground
+  (a hydrant shove + run **against** it, a shove + run **with** it) and asked for the rate to be **9** — the
+  number moved, the code did not (D-026). `Physics Settings.asset` is 9, and so are the field default and the
+  tooltip's numbers: 0→5 m/s in 0.56 s, 0→8 m/s sprint in 0.89 s, a 10 m/s shove gone inside half a second.
+  The `CounterAbsorb` question stays closed — the two runs decay at the same rate and the run ramps at that
+  rate, so the verdict is only the shape of the number. Re-check at 9: the start must feel snappy and a landing
+  must end the slide inside half a second.
 - [x] 2026-11-23 — **Play check, the press gate** (D-039): the user played and accepted — *"Да, все в
   порядке"*. Holding Space hops once and stops, a fresh press per landing fires each hop, and the run-up jump
   still reaches further than a standing one (D-034 intact). View-driving CLI commands are not allowed (G-025:

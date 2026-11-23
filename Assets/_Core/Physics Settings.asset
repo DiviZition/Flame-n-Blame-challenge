@@ -16,7 +16,7 @@ MonoBehaviour:
   <Gravity>k__BackingField: 19.62
   <GroundedGravity>k__BackingField: -2
   <TerminalVelocity>k__BackingField: 40
-  <GroundFriction>k__BackingField: 8
+  <GroundFriction>k__BackingField: 9
   <AirDrag>k__BackingField: 0.5
   <MaxPushSpeed>k__BackingField: 12
   <JumpCarry>k__BackingField: 1
