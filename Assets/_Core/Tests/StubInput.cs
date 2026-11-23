@@ -11,7 +11,9 @@ namespace Flame_n_Blame_Challenge.Tests
         public Vector2 LookDelta { get; set; }
         public bool IsRunning { get; set; }
         public bool IsWalking => InputDirection != Vector2.zero;
-        public bool IsJumping { get; set; }
+        /// The press fact, the way the shell reports it: true for the tick it is set, and a test clears it
+        /// after that tick (`PressJump` in the jump tests), because a held press must not fire again (D-039).
+        public bool JumpPressed { get; set; }
 
         public event Action<bool> OnInteractButton;
         public event Action<bool> OnUseButton;

@@ -56,13 +56,22 @@ namespace Flame_n_Blame_Challenge.Tests
             }
         }
 
+        /// The press as the shell reports it: `WasPressedThisFrame` is true for the tick the press started and
+        /// false after, so a press held across a landing cannot fire a second time (D-039). The stub mirrors
+        /// that: the press is set, the tick runs, the press is cleared.
+        private void PressJump(bool grounded)
+        {
+            _input.JumpPressed = true;
+            Tick(1, grounded);
+            _input.JumpPressed = false;
+        }
+
         /// Pressing jump on a grounded body, and the tick that fires it. The launch then runs for
         /// Duration: 60 ticks at 60 Hz, so 59 more ticks complete its 60 applications.
         private void PressAndFire()
         {
             Tick(1, true);
-            _input.IsJumping = true;
-            Tick(1, true);
+            PressJump(true);
         }
 
         /// The analytic launch the stub preset must produce: the integral of Force over Duration, divided by
@@ -73,13 +82,13 @@ namespace Flame_n_Blame_Challenge.Tests
             return jump.Force * jump.Duration / _physics.Mass - _physics.Gravity * jump.Duration;
         }
 
-        // T10a - a jump press in the air produces nothing.
+        // T10a - a jump press in the air produces nothing. The press is one tick's fact (D-039), so the
+        // airborne press is not stored and no later landing fires it.
         [Test]
         public void JumpPressedInAir_ProducesNoLaunch()
         {
-            _input.IsJumping = true;
-
-            Tick(60, false);
+            PressJump(false);
+            Tick(59, false);
 
             Assert.AreEqual(0, _player.Motion.ActivePushCount, "an airborne jump press creates no push");
             Assert.IsFalse(_player.Motion.IsLaunched, "an airborne jump press launches nothing");
@@ -99,10 +108,10 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.IsTrue(_player.Motion.IsLaunched, "a launch strong enough to rise leaves the ground");
         }
 
-        // T10c - holding the press through flight must not stack launches: the launch keeps accumulating
-        // while its force runs, and there is ONE entry.
+        // T10c - the launch keeps accumulating while its force runs, and there is ONE entry. Pressed once: the
+        // press is one tick's fact, so no second launch enters the list (D-039).
         [Test]
-        public void JumpHeldInFlight_DoesNotFireAgain_KeepsAccumulating()
+        public void TimedLaunch_KeepsAccumulating_WhileItsForceRuns_OneEntry()
         {
             PressAndFire();
 
@@ -123,10 +132,10 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.Greater(_player.Motion.VerticalVelocity, 1f, "the launch's momentum survived its own timer");
         }
 
-        // T10d - the launch keeps its inertia in flight, gravity eats it, the landing absorbs it, and the
-        // contact re-arms the jump (D-017: one press per contact).
+        // T10d - the launch keeps its inertia in flight, gravity eats it, the landing absorbs it, and a
+        // **fresh** press on the new contact fires the next jump (D-039: the press is the gate's fact).
         [Test]
-        public void Landing_AbsorbsTheLaunch_AndReArmsTheJump()
+        public void Landing_AbsorbsTheLaunch_AFreshPressFiresTheNextJump()
         {
             PressAndFire();
             Tick(60, false);
@@ -143,33 +152,36 @@ namespace Flame_n_Blame_Challenge.Tests
             Tick(60, false);
             Assert.LessOrEqual(_player.Motion.VerticalVelocity, 0f, "the fall has arrived");
 
-            _input.IsJumping = false;
             Tick(1, true);
             Assert.AreEqual(_physics.GroundedGravity - _physics.Gravity * Dt, _player.Motion.VerticalVelocity,
-                0.01f, "contact absorbs the launch momentum");
+                0.01f, "contact absorbs the launch momentum (no press: the press is one tick's fact, D-039)");
 
-            _input.IsJumping = true;
-            Tick(60, true);
+            PressJump(true);
+            Tick(59, true);
             Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
-                "the jump re-arms on the next contact");
+                "the jump re-arms on the next contact: a fresh press fires it (D-017 + D-039)");
         }
 
-        // D-017's own words - one press per contact, the contact re-arms it - mean a press held through a
-        // landing bounces. This pins that feel choice: a jump that needs a re-press is a new decision, and
-        // this test is what changes when it is made.
+        // D-039's pin: the press is the shell's one-tick fact, so a press held through a landing does NOT
+        // bounce. The landing absorbs the launch, and only a **fresh** press fires the next jump — this is
+        // the gate that keeps bunny-hop out of the model, and it replaces D-017's "a held press bounces" pin.
         [Test]
-        public void PressHeldThroughALanding_ReBounces()
+        public void PressHeldThroughALanding_DoesNotReBounce()
         {
             PressAndFire();
             Tick(122, false);     // force ends, the rise decays, the fall arrives
 
             Assert.LessOrEqual(_player.Motion.VerticalVelocity, 0f, "the body is falling onto the ground");
 
-            Tick(1, true);        // landing, the press is still held - and the landing tick fires the jump
-            Tick(60, true);
+            Tick(1, true);        // landing with no press fact: nothing fires
+            Assert.AreEqual(0, _player.Motion.ActivePushCount, "a held press fires nothing on the landing tick");
+            Assert.AreEqual(_physics.GroundedGravity - _physics.Gravity * Dt, _player.Motion.VerticalVelocity,
+                0.01f, "the landing absorbs the launch, there is no second launch");
 
+            PressJump(true);
+            Tick(60, true);
             Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
-                "a held press bounces on landing");
+                "a fresh press on the contact fires the jump");
             Assert.AreEqual(1, _player.Motion.ActivePushCount, "one launch entry, never one per contact");
         }
 
@@ -270,8 +282,7 @@ namespace Flame_n_Blame_Challenge.Tests
                 Tick(60, true);
                 float speed = _player.Movement.DesiredVelocity.magnitude;
 
-                _input.IsJumping = true;
-                Tick(1, true);
+                PressJump(true);   // the press fires on the tick it is seen
 
                 carries[run] = _player.Motion.PushVelocity.x;
                 Assert.AreEqual(speed * (1f - _physics.GroundFriction * Dt), carries[run], 0.02f,
@@ -298,8 +309,7 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.AreEqual(_control.PlayerSpeedSprint, _player.Movement.DesiredVelocity.magnitude, Tolerance,
                 "the run has reached the authored sprint speed");
 
-            _input.IsJumping = true;
-            Tick(1, true);
+            PressJump(true);
 
             Assert.AreEqual(12f, _player.Motion.PushVelocity.x, Tolerance,
                 "8 * 2 saturates at the cap, the channel is never above MaxPushSpeed");

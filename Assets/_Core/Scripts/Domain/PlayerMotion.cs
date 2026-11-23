@@ -74,7 +74,6 @@ namespace Flame_n_Blame_Challenge.Domain
 
         private bool _contactGrounded;
         private Vector3 _contactNormal;
-        private bool _jumpFiredThisContact;
 
         public Vector3 Velocity { get; private set; }
         public bool IsGrounded { get; private set; }
@@ -126,16 +125,18 @@ namespace Flame_n_Blame_Challenge.Domain
             IsGrounded = true;
         }
 
-        /// Jump is one of the pushes (D-017), and its gate lives here for now: the two facts it needs are
-        /// contact (the ground the launch leaves) and the push channel (the momentum it adds), and this is
-        /// the domain class that owns both. `PlayerMovement` exposes the *request* only, never the rule.
-        /// Moving the gate to a `JumpUseCase` is D-027's second half.
+        /// Jump is one of the pushes (D-017), and its gate lives here for now. The two facts it needs are the
+        /// **press fact** (`PlayerMovement` exposes the request of this tick only: the shell reports the press
+        /// for one tick, so a held key cannot fire twice — D-039) and contact (the ground the launch leaves).
+        /// `PlayerMotion` is the domain class that owns contact, so the gate is here, and `PlayerMovement`
+        /// exposes the request, never the rule. No press flag is stored: a fact that lasts one tick cannot be
+        /// consumed twice, and a press seen in the air is not remembered, so nothing fires on the landing.
+        /// This gate is what keeps bunny-hop out of the model. Moving it to a `JumpUseCase` is D-027's second
+        /// half.
         private void TryJump()
         {
-            if (_movement.IsJumpRequested == false || IsGrounded == false || _jumpFiredThisContact)
+            if (_movement.IsJumpRequested == false || IsGrounded == false)
                 return;
-
-            _jumpFiredThisContact = true;
 
             // The authored preset launches **straight up**: its Force is the launch, so tilting the direction
             // by speed trades height for reach — a running jump lower than a standing one, because the
@@ -233,12 +234,8 @@ namespace Flame_n_Blame_Challenge.Domain
                 if (_verticalVelocity <= 0f && LiveVerticalForce() <= _mass * _physics.Gravity)
                     _verticalVelocity = _physics.GroundedGravity;
             }
-            else
-            {
-                // Leaving the ground is what makes the jump available again, so the lock is released
-                // here and not on a timer (D-017: one press per contact).
-                _jumpFiredThisContact = false;
-            }
+            // Airborne, nothing is stored: the jump press is not remembered, so a press made in flight
+            // never fires on the landing (D-039).
 
             if (IsWallContact(_contactNormal))
             {

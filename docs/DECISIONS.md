@@ -836,3 +836,45 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
   D-036's ground half are **superseded**; the air clamp stands. `unity cmd script recompile` → 0 errors,
   `unity cmd test run --mode editor` → **27 tests, 27 passed**. The feel verdict the user was playing for is
   now a single number to play with: `GroundFriction` 8.
+
+## D-039: The jump fires on a fresh press fact, not on a held key — bunny-hop has no entry point
+- **Date:** 2026-11-23
+- **Status:** Accepted (the user's call: *"Давай уберем возможность баннихопа"*, after the two entry vectors
+  were named; the input fact is the shell's, the gate stays the domain's).
+- **Context:** D-017 wrote "one press per contact, re-armed on the next contact", and the test
+  `PressHeldThroughALanding_ReBounces` pinned the consequence: a press held through a landing bounces. With
+  `JumpCarry` carrying the run's speed into the flight (`D-034`) and `AirDrag` 0.5 keeping that momentum alive
+  through seconds, the bounce chain is the classic bunny-hop entry: Space held = continuous hops, each hop
+  carrying the previous speed back through the push channel. The shell read the press as a **state**
+  (`IsJumping = ReadValue > 0`), so the domain saw the press on every tick of the hold, and the contact lock
+  released the moment the body left the ground — which is exactly a bounce machine.
+- **Decision:**
+  1. **`IPlayerInput.IsJumping` becomes `JumpPressed`**, a **one-tick fact**: `PlayerInputMain` reports
+     `WasPressedThisFrame()` — Input System's press event — never the held state.
+  2. **`PlayerMovement.IsJumpRequested` reads the fact of this tick** — the request stays in movement, the
+     rule stays in `PlayerMotion` (D-021: request in, rule out).
+  3. **The gate shrinks to two conditions: press fact + grounded.** The contact lock
+     `_jumpFiredThisContact` is **deleted** — it existed only because the press was a state that could last;
+     a fact that lasts one tick cannot be consumed twice, so the flag became dead surface the moment the press
+     became a fact (D-033), and the airborne branch of `ApplyContact` stores nothing. A press seen in the air
+     is not remembered, so a press held through a landing fires nothing; a press at the apex fires nothing;
+     each hop needs a new press.
+  4. **`PressHeldThroughALanding_ReBounces` is replaced by `PressHeldThroughALanding_DoesNotReBounce`**: the
+     landing absorbs the launch, and only a **fresh** press on the contact fires the next jump. Every jump test
+     drives the press through a `PressJump` helper that mirrors the shell (set, one tick, cleared), so a test
+     cannot leave a press true. T10c is renamed `TimedLaunch_KeepsAccumulating_WhileItsForceRuns_OneEntry`:
+     its job was "the launch does not stack", and the press is no longer a hold to stack with.
+- **Why:** A press is an event, and an event that lasts one tick cannot be consumed twice. `WasPressedThisFrame`
+  gives the fact for free, so no state is stored and no flag is added: the gate is two conditions reading a
+  fact that cannot persist, and the class stores no jump state at all. The run-up jump is untouched (the user
+  approved D-034) — the hop spam is what goes.
+- **Consequences:** `IPlayerInput` renames one member, `PlayerInputMain` is one line, `StubInput` mirrors the
+  shell's fact, `PlayerMotion` **loses** the flag and its airborne reset (net: two conditions, zero stored
+  jump state). `unity cmd script recompile` → 0 errors, `unity cmd test run --mode editor` → **27 tests,
+  27 passed** (T10a drives the airborne press as a fact, T10d is
+  `Landing_AbsorbsTheLaunch_AFreshPressFiresTheNextJump`, T10e is the new pin). D-017's "a held press bounces"
+  pin is **superseded**, and so is its "one press per contact, re-armed
+  on the next contact" mechanism — the rule is now **one press per press**, enforced by the fact. The play
+  check is the user's: the hops are gone, the run-up jump intact. `AirDrag`/`AirAcceleration` stay split by
+  the user's call (2026-11-23) — in flight there is no reaction force, so the two air numbers are not one
+  force, and merging them would lose the current air feel.

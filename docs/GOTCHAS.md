@@ -228,6 +228,17 @@ changing an ID, a status or a Rule is not (D-024).
   Never divide by a live value: use an authored constant as the denominator, or multiply by a coefficient, so
   the degenerate case is **zero** (a no-op the model can see) and not NaN (a no-op nobody sees).
 
+## G-025: `capture` and `set_selection` kill the Pipeline connection — the CLI reads facts, it does not drive the view
+- **Status:** Recorded 2026-11-23 (the user's rule: *"хватит крашить юнити"*)
+- **What:** `unity cmd capture editor_window`, `capture game_view` and `gameobject set_selection` make the
+  connected editor lose the Pipeline connection: the next command hangs, the editor has to be restarted. They
+  ask the editor to **render** its view for the CLI, which is not what the connection is for.
+- **Rule:** The CLI is a facts tool: `unity status`, `console get`, `component get_fields`, `asset read_text`,
+  `test run`, `script recompile` give everything a session needs, and none of them touches the view. A visual
+  check is the user playing in the editor, never a CLI capture. If a suspect command was run, check
+  `unity status` — the editor is ready on port 7800/7801, and `compilationFailed`/`consoleErrors` are the
+  ground truth, not the seeded tail.
+
 ## G-024: An object reference for `component set_field` is a plain path string, and the live asset object lags the file
 - **Status:** Recorded 2026-11-22 (D-037)
 - **What:** Setting a `ScriptableObject` reference on an asset: `--value '{"path":"Assets/…"}'` fails — the CLI

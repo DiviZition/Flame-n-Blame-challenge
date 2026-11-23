@@ -44,8 +44,8 @@ namespace Flame_n_Blame_Challenge.Domain
         }
 
         /// One contact report feeds both halves of the domain that care about the ground: the locomotion
-        /// intent (air speed) and the motion rules (what absorbs momentum, what re-arms the jump). The
-        /// normal is what lets the motion absorb a wall along its axis, not across the room.
+        /// intent (air speed) and the motion rules (what absorbs momentum, and the grounded fact the jump gate
+        /// reads, D-039). The normal is what lets the motion absorb a wall along its axis, not across the room.
         public void ReportContact(bool grounded, Vector3 contactNormal)
         {
             Movement.SetIsGrounded(grounded);

@@ -98,6 +98,10 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   `CounterAbsorb` question is closed — the two runs decay at the same rate, and the run ramps at that rate, so
   the verdict is only the shape of the number: 0→5 m/s in 0.63 s, 0→8 m/s sprint in 1 s, a 10 m/s shove gone
   inside a second. If the feel wants more, **the number moves, not the code** (D-026).
+- [ ] **Play check, the press gate** (D-039): hold Space — the player hops once and stops, it must not bounce;
+  press once per landing — each hop fires. The run-up jump must still reach further than a standing one
+  (D-034 intact). View-driving CLI commands are not allowed (G-025: `capture`/`set_selection` break the
+  Pipeline connection), so the user plays and reports.
 - [x] 2026-11-22 — **Ice fix: contact gives control authority over momentum** (D-036): in the air the
   component of `ControlVelocity` **along** a shove is removed every tick (running with a launch adds nothing,
   steering across keeps `PlayerSpeedInAir`); on the ground running **against** a shove eats it at
@@ -172,6 +176,16 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   0 errors, `unity cmd test run --mode editor` → **27 tests, 27 passed**. The user's rule: *"за трение с
   поверхностью отвечал один параметр. Иначе это очень сложно настраивать, тестировать и вообще код становится
   сложнее"* — the wall between the two rates was the ice (G-012, D-020, D-036).
+- [x] 2026-11-23 — **Bunny-hop gate** (D-039): `IPlayerInput.IsJumping` is now `JumpPressed`, the shell's
+  **one-tick press fact** (`WasPressedThisFrame`), `PlayerMovement.IsJumpRequested` reads the fact,
+  `PlayerMotion`'s gate (D-021) is **press fact + grounded** — the contact lock `_jumpFiredThisContact` is
+  deleted (dead surface once the press is a fact, D-033), so a held Space cannot bounce and a press in flight
+  is never remembered. `PressHeldThroughALanding_ReBounces` → `PressHeldThroughALanding_DoesNotReBounce`
+  (the landing absorbs the launch; only a fresh press fires), T10c is renamed
+  `TimedLaunch_KeepsAccumulating_WhileItsForceRuns_OneEntry`, and the jump tests drive the press through
+  `PressJump` (set, one tick, cleared), mirroring the shell. `unity cmd script recompile` → 0 errors,
+  `unity cmd test run --mode editor` → **27 tests, 27 passed**. AirDrag/AirAcceleration stay split by the user's
+  call: no reaction force in flight, so the two air numbers are not one force.
 - [ ] **Recover the design contract.** `docs/TDD.md` + `docs/Preproduction.md` are not in the repo and
   the originals are gone, so the contract exists only as D-008 + `README.md`. Find them, or restate the
   contract as a new DECISIONS entry; until then nothing cites a "TDD §n" as if the file existed.

@@ -8,7 +8,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     {
         public Vector2 LookDelta { get; private set;  }
         public Vector2 InputDirection {  get; private set; }
-        public bool IsJumping {  get; private set; }
+        public bool JumpPressed {  get; private set; }
         public bool IsRunning { get; private set; }
         public bool IsWalking => InputDirection != Vector2.zero;
 
@@ -30,7 +30,9 @@ namespace Flame_n_Blame_Challenge.Adapters
             LookDelta = _inputMap.Player.Look.ReadValue<Vector2>();
             InputDirection = _inputMap.Player.Move.ReadValue<Vector2>();
 
-            IsJumping = _inputMap.Player.Jump.ReadValue<float>() > 0;
+            // The press is a fact, not a state: true only on the tick the button started, so the gate consumes
+            // one press per jump and a held key cannot bounce (D-039).
+            JumpPressed = _inputMap.Player.Jump.WasPressedThisFrame();
             IsRunning = _inputMap.Player.Sprint.ReadValue<float>() > 0;
         }
 

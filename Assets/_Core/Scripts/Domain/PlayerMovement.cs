@@ -17,11 +17,12 @@ namespace Flame_n_Blame_Challenge.Domain
         public bool IsGrounded { get; private set; }
         public bool IsSprinting => _input.IsRunning && IsGrounded;
 
-        /// The jump *request* only. The rule — when a request may become a launch, and once per contact
-        /// at that — is `PlayerMotion`'s, because that is the class that owns contact and the push
-        /// channel. Movement cannot apply the push itself: it is a dependency of `PlayerMotion`, so
-        /// asking for the reference back would be a construction cycle.
-        public bool IsJumpRequested => _input.IsJumping;
+        /// The jump **request** only, and the request is the press fact of this tick (`IPlayerInput.JumpPressed`,
+        /// D-039) — not a held state. The rule — when a request may become a launch, and once per contact at
+        /// that — is `PlayerMotion`'s, because that is the class that owns contact and the push channel.
+        /// Movement cannot apply the push itself: it is a dependency of `PlayerMotion`, so asking for the
+        /// reference back would be a construction cycle.
+        public bool IsJumpRequested => _input.JumpPressed;
 
         public PlayerMovement(IPlayerInput input, IControlSettings settings, PlayerLookRotator look)
         {
