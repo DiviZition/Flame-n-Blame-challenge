@@ -98,10 +98,10 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   `CounterAbsorb` question is closed — the two runs decay at the same rate, and the run ramps at that rate, so
   the verdict is only the shape of the number: 0→5 m/s in 0.63 s, 0→8 m/s sprint in 1 s, a 10 m/s shove gone
   inside a second. If the feel wants more, **the number moves, not the code** (D-026).
-- [ ] **Play check, the press gate** (D-039): hold Space — the player hops once and stops, it must not bounce;
-  press once per landing — each hop fires. The run-up jump must still reach further than a standing one
-  (D-034 intact). View-driving CLI commands are not allowed (G-025: `capture`/`set_selection` break the
-  Pipeline connection), so the user plays and reports.
+- [x] 2026-11-23 — **Play check, the press gate** (D-039): the user played and accepted — *"Да, все в
+  порядке"*. Holding Space hops once and stops, a fresh press per landing fires each hop, and the run-up jump
+  still reaches further than a standing one (D-034 intact). View-driving CLI commands are not allowed (G-025:
+  `capture`/`set_selection` break the Pipeline connection), so the verdict came from the user playing.
 - [x] 2026-11-22 — **Ice fix: contact gives control authority over momentum** (D-036): in the air the
   component of `ControlVelocity` **along** a shove is removed every tick (running with a launch adds nothing,
   steering across keeps `PlayerSpeedInAir`); on the ground running **against** a shove eats it at

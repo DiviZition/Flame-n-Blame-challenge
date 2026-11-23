@@ -875,6 +875,7 @@ attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings
   `Landing_AbsorbsTheLaunch_AFreshPressFiresTheNextJump`, T10e is the new pin). D-017's "a held press bounces"
   pin is **superseded**, and so is its "one press per contact, re-armed
   on the next contact" mechanism — the rule is now **one press per press**, enforced by the fact. The play
-  check is the user's: the hops are gone, the run-up jump intact. `AirDrag`/`AirAcceleration` stay split by
+  check is **done**: the user played the gate on 2026-11-23 and accepted it — *"Да, все в порядке"* — the hops
+  are gone and the run-up jump is intact. `AirDrag`/`AirAcceleration` stay split by
   the user's call (2026-11-23) — in flight there is no reaction force, so the two air numbers are not one
   force, and merging them would lose the current air feel.
