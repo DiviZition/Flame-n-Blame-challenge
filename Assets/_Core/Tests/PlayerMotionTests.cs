@@ -5,12 +5,14 @@ using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Tests
 {
-    /// Behaviour tests for the push model (U1-U6, D-016, G-012). Expectations are computed from the
-    /// requirements, never read off the implementation, so a broken model fails them - a duration-
-    /// authoritative velocity model, a push that overwrites input, a spray that stacks, all fail here.
-    /// Nothing touches PlayerMotor, position, or CollisionFlags: the domain public API is the surface.
-    /// T15 adds the contact-authority rules: in the air control never adds to a shove (D-036), and on the
-    /// ground the ONE authored rate eats the shove in every direction while the run reaches full speed (D-038).
+    /// Behaviour tests for the push model (D-016, G-012). Expectations are computed from the requirements,
+    /// never read off the implementation, so a broken model fails them: a duration-authoritative velocity
+    /// model, a push that overwrites input, a spray that stacks, a ground that slides like ice. Nothing
+    /// touches PlayerMotor, position or CollisionFlags - the domain public API is the surface. One rule per
+    /// test (D-050): momentum outliving its timer, contact absorbed along a normal, the landing absorption,
+    /// direction from the source, the drag equilibrium, the cap, frame-rate independence, degenerate authored
+    /// data, the no-allocation budget, the air clamp (D-036). The ground's ONE rate (D-038) is the rate every
+    /// grounded expectation names, and AirDrag is the only rate in flight.
     public class PlayerMotionTests
     {
         private const float Dt = 1f / 60f;
@@ -37,8 +39,8 @@ namespace Flame_n_Blame_Challenge.Tests
             _motion = new PlayerMotion(_movement, _physics, _control, _presets);
         }
 
-        /// One tick, the way the session drives it: contact reported, then the tick runs. The normal is
-        /// the surface the shell collided with; Vector3.zero means no side contact.
+        /// One tick, the way the session drives it: contact reported, then the tick runs. The normal is the
+        /// surface the shell collided with; Vector3.zero means no side contact.
         private void Tick(int ticks, bool grounded, float dt = Dt)
         {
             for (int i = 0; i < ticks; i++)
@@ -54,8 +56,8 @@ namespace Flame_n_Blame_Challenge.Tests
             _motion.UpdateLogic(0f, dt);
         }
 
-        // T1 - momentum survives the force timer, and decays only by drag. The analytic expectation is
-        // pure geometric decay: v(t) = v0 * (1 - k*dt)^n.
+        // Momentum survives the force timer and decays only by drag: the analytic expectation is pure
+        // geometric decay, v(t) = v0 * (1 - k*dt)^n, and the series may never rise.
         [Test]
         public void Momentum_SurvivesTheForceTimer_AndDecaysOnlyByDrag()
         {
@@ -87,11 +89,11 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.AreEqual(expected, _motion.Velocity.z, 0.1f, "decay must be pure drag, not the timer");
         }
 
-        // T2 - a wall absorbs the launch momentum along its normal and leaves the player's own movement
-        // intact, so the player can still walk away from it. The expectation is a DIFF against the
-        // identical run that never meets a wall: only the push channel may differ. Absolute control values
-        // would be wrong here - control drifts toward the reduced air speed while airborne, and that drift
-        // belongs to the input rules, not to the wall.
+        // A wall absorbs the launch momentum along its normal and leaves the player's own movement intact, so
+        // the player can still walk away from it. The expectation is a DIFF against the identical run that
+        // never meets a wall: only the push channel may differ. Absolute control values would be wrong -
+        // control drifts toward the reduced air speed while airborne, and that drift belongs to the input
+        // rules, not to the wall (D-027).
         [Test]
         public void WallNormal_AbsorbsTheNormalAxis_AndLeavesControlIntact()
         {
@@ -119,11 +121,9 @@ namespace Flame_n_Blame_Challenge.Tests
             return new Vector3(_motion.ControlVelocity.x, 0f, _motion.PushVelocity.z);
         }
 
-        // T3 - landing zeroes the vertical momentum to the authored grounded rest value, and the ground takes
-        // over the horizontal momentum on the same tick: the ground's ONE rate acts on the body's momentum,
-        // not only on the control, so a shove carried into a landing decays from the first grounded tick
-        // (D-038). The vertical half is the D-030 rule; the horizontal half is the ground rate, and one
-        // model that survives both is the one-rate-for-both-states model the air half already pins.
+        // Landing zeroes the vertical momentum to the authored grounded rest value (D-030) and takes over the
+        // horizontal momentum on the same tick: the ground's ONE rate acts on the body's momentum, not only on
+        // the control, so a shove carried into a landing decays from the first grounded tick (D-038).
         [Test]
         public void Landing_KillsVerticalMomentum_AndStartsEatingHorizontalMomentum()
         {
@@ -147,8 +147,8 @@ namespace Flame_n_Blame_Challenge.Tests
                 "the ground eats the horizontal momentum at its own rate on the first grounded tick (D-038)");
         }
 
-        // T4 - a launch follows the direction the SOURCE gave, not the player's facing. Same push, four
-        // facings: the direction is a Vector3 handed over by the source, so facing cannot bend it (D-028).
+        // A launch follows the direction the SOURCE gave, not the player's facing (D-028). Same push, four
+        // facings: the direction is a Vector3 handed over by the source, so facing cannot bend it.
         [Test]
         public void LaunchDirection_ComesFromTheSource_NotThePlayersFacing()
         {
@@ -177,38 +177,11 @@ namespace Flame_n_Blame_Challenge.Tests
             }
         }
 
-        // T5 - pushes add to the player's own movement, never replace it. Walking east, shoved north: the
-        // control survives the shove whole, and the shove keeps its own channel (the ground eats part of it in
-        // one tick, the analytic rate, which is the D-038 rule, not an accident of the test).
-        [Test]
-        public void Pushes_AddToMovement_TheyNeverReplaceIt()
-        {
-            _physics.AirDrag = 0f;
-            _physics.MaxPushSpeed = 100f;
-            _input.InputDirection = new Vector2(1f, 0f);
-
-            Tick(60, true);
-            float walkedEast = _motion.ControlVelocity.x;
-            Assert.AreEqual(_control.PlayerSpeedBase, walkedEast, 0.01f,
-                "the ground ramps the run to the authored walk speed at `GroundFriction` (D-038)");
-
-            float shove = 60f / _physics.Mass;
-            _motion.ApplyPush(Presets.Impulse(PushType.ExtinguisherShove, 60f), Vector3.forward);
-            TickOnce(true, Vector3.up);
-
-            Assert.AreEqual(shove * (1f - _physics.GroundFriction * Dt), _motion.PushVelocity.z, Tolerance,
-                "the shove is in its own channel, decayed by the ground's one rate for one tick (D-038)");
-            Assert.AreEqual(walkedEast, _motion.ControlVelocity.x, Tolerance,
-                "the shove must not steal the player's own movement");
-        }
-
-        // T6a - the anti-accumulation test, below the cap. A spray re-fired every 0.1 s for 10 s keeps ONE
-        // entry, and converges to the analytic force/drag equilibrium: v(t) = v*(1 - e^{-k t}) with
-        // v* = Force/(Mass*AirDrag), k = AirDrag. At AirDrag 0.5 the time constant is 2 s, so the plateau
-        // is reached in ~3τ (6 s). An absolute "late - early < 0.1" threshold is unpassable at any τ - the
-        // first second of an exponential ramp from zero is always ~1-τ away from the asymptote - so
-        // convergence is asserted analytically: the late window sits on the equilibrium, the series is
-        // monotone, and the plateau is reached inside the first 3τ.
+        // The anti-accumulation test, below the cap: a spray re-fired every 0.1 s for 10 s keeps ONE entry
+        // (replace-per-Type) and converges to the analytic force/drag equilibrium, v* = Force/(Mass*AirDrag)
+        // with time constant 1/AirDrag. An absolute "late - early < 0.1" threshold is unpassable at any tau,
+        // so convergence is asserted analytically: the late window sits on the equilibrium, the series is
+        // monotone, and the plateau is reached inside the first 3 tau (B-003, D-027).
         [Test]
         public void ContinuousSpray_ConvergesToDragEquilibrium_WithoutStackingPushes()
         {
@@ -234,9 +207,9 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.Less(meanEarly, equilibrium, "the ramp must start below the plateau");
         }
 
-        // T6b - the same spray with an equilibrium ABOVE the cap. Only a real clamp can hold the channel at
-        // MaxPushSpeed when the force/drag equilibrium is higher, so this is the saturation test the name of
-        // T6a promised: force 300 N, Mass 20, AirDrag 0.5 -> equilibrium 30 m/s against a cap of 12.
+        // The same spray with an equilibrium ABOVE the cap: only a real clamp can hold the channel at
+        // MaxPushSpeed when the force/drag equilibrium is higher. Force 300 N, Mass 20, AirDrag 0.5 gives an
+        // equilibrium of 30 m/s against a cap of 12, so this is the saturation test the invariant names.
         [Test]
         public void ContinuousSpray_SaturatesAtMaxPushSpeed_WhenEquilibriumIsAboveTheCap()
         {
@@ -294,25 +267,8 @@ namespace Flame_n_Blame_Challenge.Tests
             return sum / (to - from);
         }
 
-        // T7 - replace-per-type is what bounds impulses: 100 fires of one Type is one impulse.
-        [Test]
-        public void ReFiringOneType_GivesOneImpulse_NotAHundred()
-        {
-            _physics.AirDrag = 0f;
-            _physics.MaxPushSpeed = 100f;
-
-            for (int i = 0; i < 100; i++)
-                _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 40f), Vector3.forward);
-
-            Assert.AreEqual(1, _motion.ActivePushCount, "one entry per Type, not 100");
-
-            TickOnce(false, Vector3.zero);
-
-            float oneImpulse = 40f / _physics.Mass;
-            Assert.AreEqual(oneImpulse, _motion.PushVelocity.z, Tolerance, "one impulse, not 100");
-        }
-
-        // T8 - the integration must not depend on one tick rate.
+        // The integration must not depend on one tick rate: 1/60, 1/30 and 1/120 agree within 5% (permanent
+        // assertion, D-018).
         [Test]
         public void Integration_IsFrameRateIndependent()
         {
@@ -346,12 +302,14 @@ namespace Flame_n_Blame_Challenge.Tests
             return _motion.Velocity.z;
         }
 
-        // T11 - degenerate authored data must not produce NaN, infinity, or an unbounded list.
+        // Degenerate authored data must not produce NaN, infinity, or an unbounded list: the list is capped at
+        // the budget with the oldest entry dropped, and the zero-force, zero-duration, zero-Mass, zero-cap case
+        // stays finite for every tick.
         [Test]
         public void DegeneratePresets_ProduceNoNaNAndNoUnboundedList()
         {
-            // Authored numbers are read when the domain is constructed (they come from an asset and do
-            // not change mid-session, D-012), so a degenerate Mass is a player built with that Mass.
+            // Authored numbers are read when the domain is constructed (they come from an asset and do not
+            // change mid-session, D-012), so a degenerate Mass is a player built with that Mass.
             _physics.AirDrag = 0f;
             _physics.MaxPushSpeed = 0f;
             Rebuild(0f);
@@ -378,8 +336,8 @@ namespace Flame_n_Blame_Challenge.Tests
             }
         }
 
-        // T12 - the perf budget, in the one place it can be measured without a web build: 8 pushes,
-        // 10000 ticks, nothing allocated per tick.
+        // The perf budget, in the one place it can be measured without a web build: 8 pushes, 10000 ticks,
+        // nothing allocated per tick (D-007).
         [Test]
         public void ActivePushTicking_AllocatesNothingPerTick()
         {
@@ -400,109 +358,46 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.IsTrue(allocated < 20000L, "no per-tick allocation in the hot path (got " + allocated + " bytes)");
         }
 
-        // T13 - the requirement behind "the player slides like the ground is ice": the ground must absorb
-        // a shove and the air must not. Same shove, same elapsed time, two contact states. A model with
-        // one decay rate for both - which is what the first cut had - fails the second expectation, and a
-        // model that splits the ground force into two rates is the split D-038 deleted.
+        // The air rule (D-036): a player cannot push against nothing, so control has no authority over
+        // momentum in flight. The clamp is a projection, not a suppression: running ALONG a shove adds
+        // nothing (the speed in that axis stays the shove's), steering ACROSS it keeps the player's own
+        // PlayerSpeedInAir. Two runs, one shove, both expectations analytic.
         [Test]
-        public void GroundContact_AbsorbsAShove_TheAirDoesNot()
+        public void AirborneRun_AlongAShove_AddsNothing_AcrossAShove_KeepsItsOwnAirSpeed()
         {
-            const int ticks = 60;
-            const float shove = 10f;
+            Vector3 along = AirShoveRun(new Vector2(0f, 1f), out Vector3 controlAlong);   // WITH the shove
+            Vector3 across = AirShoveRun(new Vector2(1f, 0f), out Vector3 controlAcross); // ACROSS the shove
 
-            float inAir = RunAShove(shove, 0.5f, false);       // the authored AirDrag
-            float onGround = RunAShove(shove, 12f, true);      // the stub's one ground rate
+            Assert.AreEqual(10f, along.z, Tolerance,
+                "control adds nothing along a shove in flight: the speed in that axis stays the shove's");
 
-            Assert.AreEqual(shove * Mathf.Pow(1f - 0.5f / 60f, ticks), inAir, 0.05f,
-                "in the air the shove keeps its inertia, decaying only by AirDrag (D-016)");
-            Assert.AreEqual(shove * Mathf.Pow(1f - 12f / 60f, ticks), onGround, 0.05f,
-                "on the ground the ONE authored rate `GroundFriction` eats it (D-038)");
-
-            Assert.Greater(inAir, 1f, "the air must keep the player flying (U1)");
-            Assert.Less(onGround, 0.5f, "the ground must have absorbed it inside a second: no ice");
+            Assert.AreEqual(10f, across.z, Tolerance, "the shove flies on, untouched");
+            Assert.AreEqual(_control.PlayerSpeedInAir, across.x, 0.01f,
+                "steering across a shove is the player's own air speed, not a suppressed one");
         }
 
-        /// One shove of `shove` m/s (Force = shove * Mass, the stub's authored Mass is 20), for one second,
-        /// in one contact state. `rate` is the authored rate of that state - `AirDrag` in flight,
-        /// `GroundFriction` on the ground - so both expectations read the same geometric decay from the port
-        /// that owns it, and no rate is invented for the test.
-        private float RunAShove(float shove, float rate, bool grounded)
+        /// One shove of 10 m/s along +z, then 60 airborne ticks with the player running in `run`. Returns the
+        /// velocity and the control velocity, so the along and across runs read the same authored numbers.
+        private Vector3 AirShoveRun(Vector2 run, out Vector3 control)
         {
             SetUp();
-            _physics.MaxPushSpeed = 100f;
-
-            if (grounded)
-                _physics.GroundFriction = rate;
-            else
-                _physics.AirDrag = rate;
-
-            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, shove * _physics.Mass), Vector3.forward);
-
-            const int ticks = 60;
-            for (int tick = 0; tick < ticks; tick++)
-                TickOnce(grounded, Vector3.zero);
-
-            return _motion.PushVelocity.z;
-        }
-
-        /// Authored numbers are read when the domain is constructed - the asset exists before the player
-        /// does, and it never changes mid-session (D-012) - so a scenario that needs different values
-        /// sets them and then builds the parts, exactly as the session does.
-        private void Rebuild(float mass)
-        {
-            _physics.Mass = mass;
-            _input = new StubInput();
-            _look = new PlayerLookRotator(_input, _control);
-            _movement = new PlayerMovement(_input, _control, _look);
-            _motion = new PlayerMotion(_movement, _physics, _control, _presets);
-        }
-
-        // T15a - the air rule (D-036): a player cannot push against nothing, so control has no authority
-        // over momentum in flight. Shoved forward, running forward in the air: the total speed stays the
-        // shove's. The expectation is analytic - the shove axis is the input axis, so the clamp zeroes the
-        // control component exactly, and AirDrag 0 pins the momentum at 10.
-        [Test]
-        public void AirborneRun_AlongAShove_AddsNothing_TheSpeedIsTheShoves()
-        {
             _physics.AirDrag = 0f;
             _physics.MaxPushSpeed = 100f;
 
             Tick(1, true);
             _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _physics.Mass), Vector3.forward);
 
-            _input.InputDirection = new Vector2(0f, 1f);   // running WITH the shove, the same axis
+            _input.InputDirection = run;
             Tick(60, false);
 
-            Assert.AreEqual(10f, _motion.PushVelocity.z, Tolerance, "the momentum is intact in the air");
-            Assert.AreEqual(0f, _motion.ControlVelocity.z, Tolerance,
-                "control adds nothing along a shove in flight: no boost, no second launch");
-            Assert.AreEqual(10f, _motion.Velocity.z, Tolerance, "the speed in the shove's direction is the shove's");
+            control = _motion.ControlVelocity;
+            return _motion.Velocity;
         }
 
-        // T15b - the clamp is a projection, not a suppression: steering ACROSS a shove is the player's own
-        // air control (PlayerSpeedInAir), and must survive. Shoved forward, running right in the air.
-        [Test]
-        public void AirborneRun_AcrossAShove_KeepsItsOwnAirSpeed()
-        {
-            _physics.AirDrag = 0f;
-            _physics.MaxPushSpeed = 100f;
-
-            Tick(1, true);
-            _motion.ApplyPush(Presets.Impulse(PushType.HydrantPush, 10f * _physics.Mass), Vector3.forward);
-
-            _input.InputDirection = new Vector2(1f, 0f);   // running across the shove
-            Tick(60, false);
-
-            Assert.AreEqual(10f, _motion.Velocity.z, Tolerance, "the shove flies on, untouched");
-            Assert.AreEqual(_control.PlayerSpeedInAir, _motion.Velocity.x, 0.01f,
-                "steering across a shove is the player's own air speed");
-        }
-
-        // T15c - the ground rule (D-038): the ground's reaction is a real force, so it acts on the body's
-        // momentum. Shoved forward, run AGAINST it and run WITH it: the ONE authored rate eats the shove in
-        // both directions (no sign rule, no second ground rate), the player's own run reaches full speed in
-        // both, and the total is the run plus whatever of the shove is left. Two runs, one shove, and the two
-        // analytic decays are the same number.
+        // The ground rule (D-038): the ground's reaction is a real force, so it acts on the body's momentum.
+        // Shoved forward, run AGAINST it and run WITH it: the ONE authored rate eats the shove in both
+        // directions (no sign rule, no second ground rate), the player's own run reaches full speed in both,
+        // and the two analytic decays are the same number.
         [Test]
         public void GroundedRun_EatsAShoveAtTheGroundRate_InBothDirections()
         {
@@ -537,6 +432,18 @@ namespace Flame_n_Blame_Challenge.Tests
             Tick(ticks, true);
 
             return new[] { _motion.PushVelocity.z, _motion.ControlVelocity.z };
+        }
+
+        /// Authored numbers are read when the domain is constructed - the asset exists before the player does,
+        /// and it never changes mid-session (D-012) - so a scenario that needs a different Mass sets it and
+        /// then builds the parts, exactly as the session does.
+        private void Rebuild(float mass)
+        {
+            _physics.Mass = mass;
+            _input = new StubInput();
+            _look = new PlayerLookRotator(_input, _control);
+            _movement = new PlayerMovement(_input, _control, _look);
+            _motion = new PlayerMotion(_movement, _physics, _control, _presets);
         }
     }
 }

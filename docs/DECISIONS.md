@@ -167,7 +167,7 @@ Point`). **No `Player` GameObject, so `PlayerMotor` is attached to nothing (B-00
 - **Why:** `unity cmd` prints every command with its description, `--query` searches, `--help` prints parameters, and the non-obvious facts are already in CLAUDE.md §Commands and G-014/G-015. A manual duplicating help output goes stale against the CLI binary.
 
 ## D-026: Tests — on code, on Domain/UseCases/invariants, after the mechanic is approved
-- **2026-11-20 · Accepted · rewrites the test process in CLAUDE.md and STYLE.md**
+- **2026-11-20 · Accepted · rewrites the test process in CLAUDE.md and STYLE.md · the suite's frequency changed by D-050**
 - **Decision:** Suite runs **EditMode on code** (`unity cmd test run --mode editor`), the test asmdef editor-only. Tested: Domain, UseCases, **invariants**; **never Adapters**. Written **after** the user has played and approved the mechanic. A test runs once, under 90 s.
 - **Why:** Feel is judged by the user's eyes, so a test cannot say a launch feels right; asserting an unapproved mechanic is writing a specification the user is about to change. A test on a shell asserts Unity, Play Mode pays a scene load for code that touches no Unity, re-running buys nothing.
 
@@ -312,5 +312,14 @@ Point`). **No `Player` GameObject, so `PlayerMotor` is attached to nothing (B-00
 - **2026-11-25 · Accepted · the user's ask: make the docs stop growing · suite runs green**
 - **Decision:** Every doc has a line budget, a per-entry budget and a max line length, written once in docs/README.md and asserted by `DocBudgetTests` (the editor suite reads the docs as plain text). A red test is compacted **before** code, never by raising the number. Routing lives in one file and
   every other doc points at it; `AGENTS.md` is a pure pointer to `CLAUDE.md`. Numbers, gate outputs, test counts, CLI transcripts, scene coordinates and probe values are banned from every doc — they belong to the commit body and to `TODO.md` status lines.
-- **Why:** A length rule on paper failed: the log grew ~250 lines a day for a week under "keep them short", because an append-only entry cannot be compressed, so writing more was the only legal move. Making entries editable (history lives in git) removes the reason for a long entry; a test that reads
+- **Why:** A length rule on paper failed: the log grew ~250 lines a day for a week under "keep them short", because an append-only entry cannot be compressed, so writing more was the only legal move. Making entries editable (history lives in git) removes the reason for a long entry; a test that
+  reads
   the files makes the budget impossible to skip, and the ban on run-output text removes the bulk a session produces every day.
+
+## D-050: Tests are a regression net; the user's play is the task gate
+- **2026-11-25 · Accepted · the user's rule: the per-task test was an experiment and is retired · suite runs green**
+- **Decision:** A task is delivered to the user and **their play verdict is the task done** — the suite is not a per-task gate, it runs once at the end of a session. A rule gets exactly one test, and a test that restates the same rule from a second angle is deleted, not kept: the jump and motion
+  suites were cut to one test per rule, keeping the analytic launch, the press fact, the no-bounce gate, the analytic carry, contact
+  absorption by normal, the ground/air rates, the drag equilibrium, the cap, direction from the source, frame-rate independence, the no-allocation budget, the degenerate-data case.
+- **Why:** Almost half the code was test code, and the deleted tests asserted rules that had not moved for days — the cost was maintaining them, not running them: the suite takes a fraction of a second. Play is the gate that judges feel, which no test can, so a suite that blocks delivery spends the
+  time it was written to save. One rule per test is the shape that stays small enough to keep.

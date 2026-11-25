@@ -46,12 +46,10 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   `SprayShoveUseCase`, `ImpulseKickUseCase` (one-shot, no duration). Each owns its trigger and conditions;
   the simulation stays free of any player knowledge. Order in the updater: input → use cases → player →
   shell.
-- [ ] **Editor feel checks (5)**, each verified with `unity cmd capture scene_view/game_view`:
-  (a) launch direction follows the hydrant's rotation, not the player's facing; (b) the player keeps
-  moving after a 2 s preset ends; (c) velocity dies on **landing**, not in mid-air; (d) input steers in
-  flight at the reduced air speed; (e) a 0.1 s spray for 3 s **saturates**, not accelerates (B-003).
-  **The tests for this mechanic are written after the user approves it** (D-026) — the push-model suite
-  is edited along with the feel pass, not ahead of it.
+- [ ] **Play checks (5)**, each made by the user playing (G-025 — the CLI is a facts tool, it does not
+  capture): (a) launch direction follows the hydrant's rotation, not the player's facing; (b) the player keeps
+  moving after a 2 s preset ends; (c) velocity dies on **landing**, not in mid-air; (d) input steers in flight
+  at the reduced air speed; (e) a 0.1 s spray for 3 s **saturates**, not accelerates (B-003).
 - [ ] **Fire tests after the feel verdict** (D-026). The lab stand is deleted (D-048), so the look and the
   preset numbers are the user's call, made by playing props that burn.
 - [ ] **Asmdef housekeeping:** drop the `CartoonFX` vendor-demo reference (an asset-store update can

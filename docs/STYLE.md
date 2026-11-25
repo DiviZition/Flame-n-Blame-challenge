@@ -64,12 +64,16 @@ in DECISIONS.md).
   `StubInput`/`StubPhysics`/`StubControl`/`StubPresets` and the authored DTOs (`Presets`). Authored numbers are
   set **before** construction (the domain reads them at construction, D-012) — mutating a settings object
   afterwards is not a test input (D-037: one port per reader, so a test sets the port its subject lives in).
+- **One rule, one test:** a rule gets exactly one test, and a test that restates the same rule from a
+  second angle is deleted, not kept (D-050). A suite that asserts six rules twenty times is the shape that
+  made tests feel expensive.
+- **When, and how often:** a test is written after the user has played the mechanic and approved it. The
+  suite is a **regression net run once at the end of a session**, never per task — the acceptance gate for
+  a task is the user playing the mechanic, and their verdict is the task done (D-050).
 - **Assert analytic expectations:** author a value, compute what must follow (`Force / Mass`), assert
   that. A test that asserts an observed number from a run is a snapshot, not a rule.
 - **Permanent assertions:** frame-rate independence at `dt = 1/60, 1/30, 1/120` within 5% (T8) and the
   no-per-tick-allocation budget (T12, `GC.GetTotalMemory` delta). A rewrite that breaks either fails.
-- **When:** after the user has played the mechanic and approved it. Tests written before approval are
-  rewritten with every mechanic change — that is the signal they were written too early.
 - Naming: `XTests.Method_Condition_Expectation` (e.g. `ContinuousSpray_Saturates_WithoutStackingPushes`).
 
 ## Unity assets

@@ -4,17 +4,16 @@ using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Tests
 {
-    /// Jump is one of the pushes (D-017), so these tests assert it through the same entry point the hydrant
-    /// and the spray use: an authored preset, a force over a duration, contact absorbs what is left. The
-    /// player is driven through ReportContact + Update, exactly as the session drives it - no PlayerMotor,
-    /// no scene. Expectations are the analytic integral of the preset: launch = Force * Duration / Mass -
-    /// Gravity * Duration, so a preset change moves the number and a hard-coded jump does not. The launch
-    /// assertions use a 0.2 tolerance: one tick of gravity (10/60 = 0.1667) is the discretization floor of
-    /// a tick-integrated force, and the analytic number is the integral, not the sum of ticks.
-    /// T14 asserts the forward carry of D-034: `JumpCarry * ControlVelocity` in the push channel, the height
-    /// untouched, the cap applied, the decay analytic. The carry is added on a grounded tick, so the ground's
-    /// ONE rate (D-038) takes its share off the jump tick — every carry expectation names `GroundFriction`,
-    /// and none of them assumes the ground is inertial.
+    /// Jump is one of the pushes (D-017), so it is asserted through the same entry point the hydrant and the
+    /// spray use: an authored preset, a force over a duration, contact absorbing what is left. The player is
+    /// driven through ReportContact + Update, exactly as the session drives it - no PlayerMotor, no scene.
+    /// Expectations are the analytic integral of the preset: launch = Force * Duration / Mass - Gravity *
+    /// Duration, so a preset change moves the number and a hard-coded jump does not. The launch tolerance is
+    /// 0.2: one tick of gravity (10/60 = 0.1667) is the discretization floor of a tick-integrated force, and
+    /// the analytic number is the integral, not the sum of ticks.
+    /// One rule per test (D-050): the analytic launch, the press fact in the air, the no-bounce gate, the
+    /// standing zero, the running carry. Decay, contact absorption, the cap and frame-rate independence are
+    /// asserted once in PlayerMotionTests, where those rules live.
     public class PlayerJumpTests
     {
         private const float Dt = 1f / 60f;
@@ -33,7 +32,7 @@ namespace Flame_n_Blame_Challenge.Tests
             // The stub jump is Force 400 N, flat envelope, Duration 1 s; Mass 20 and Gravity 10 make the
             // launch (400/20 - 10) * 1 = 10 m/s, hand-checkable. AirDrag 0 and GroundedGravity 0 keep the
             // vertical channel readable. The ground rate stays the stub's 12: a running jump's carry is eaten
-            // by the ground on the tick it is added (D-038), so every carry expectation names that rate.
+            // by the ground on the tick it is added (D-038), so the carry expectation names that rate.
             _physics = new StubPhysics
             {
                 Gravity = 10f,
@@ -82,8 +81,8 @@ namespace Flame_n_Blame_Challenge.Tests
             return jump.Force * jump.Duration / _physics.Mass - _physics.Gravity * jump.Duration;
         }
 
-        // T10a - a jump press in the air produces nothing. The press is one tick's fact (D-039), so the
-        // airborne press is not stored and no later landing fires it.
+        // The press is one tick's fact (D-039), so an airborne press is not stored: no push, no launch, and no
+        // later landing fires it.
         [Test]
         public void JumpPressedInAir_ProducesNoLaunch()
         {
@@ -95,7 +94,8 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.Less(_player.Motion.VerticalVelocity, 0f, "the body only falls");
         }
 
-        // T10b - a grounded press is the authored preset, accumulated over its Duration.
+        // A grounded press is the authored preset, accumulated over its Duration - the analytic integral, not a
+        // number coded into the jump.
         [Test]
         public void JumpPressedGrounded_AccumulatesThePresetIntegral()
         {
@@ -108,63 +108,9 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.IsTrue(_player.Motion.IsLaunched, "a launch strong enough to rise leaves the ground");
         }
 
-        // T10c - the launch keeps accumulating while its force runs, and there is ONE entry. Pressed once: the
-        // press is one tick's fact, so no second launch enters the list (D-039).
-        [Test]
-        public void TimedLaunch_KeepsAccumulating_WhileItsForceRuns_OneEntry()
-        {
-            PressAndFire();
-
-            float afterFirstTick = _player.Motion.VerticalVelocity;
-            Assert.Greater(afterFirstTick, 0f, "the launch rises from the first tick");
-
-            Tick(10, false);
-
-            Assert.Greater(_player.Motion.VerticalVelocity, afterFirstTick,
-                "the timed launch keeps accumulating while its force runs");
-            Assert.AreEqual(1, _player.Motion.ActivePushCount, "one launch entry, never one per tick");
-
-            int forceTicks = Mathf.RoundToInt(
-                ((SustainedPresetData)_presets.PresetOf(PushType.PlayerJump)).Duration * 60f);
-            Tick(forceTicks, false);   // 60 applications at 60 Hz: the force is done
-
-            Assert.AreEqual(0, _player.Motion.ActivePushCount, "the force ends at Duration, the momentum stays");
-            Assert.Greater(_player.Motion.VerticalVelocity, 1f, "the launch's momentum survived its own timer");
-        }
-
-        // T10d - the launch keeps its inertia in flight, gravity eats it, the landing absorbs it, and a
-        // **fresh** press on the new contact fires the next jump (D-039: the press is the gate's fact).
-        [Test]
-        public void Landing_AbsorbsTheLaunch_AFreshPressFiresTheNextJump()
-        {
-            PressAndFire();
-            Tick(60, false);
-
-            float atEndOfForce = _player.Motion.VerticalVelocity;
-            Assert.Greater(atEndOfForce, 0f, "the launch carried the player up");
-
-            Tick(50, false);
-            Assert.Greater(_player.Motion.VerticalVelocity, 0f, "inertia is still rising: gravity has not eaten it");
-
-            Tick(1, false);
-            Assert.Less(_player.Motion.VerticalVelocity, atEndOfForce, "gravity is eating the launch's inertia");
-
-            Tick(60, false);
-            Assert.LessOrEqual(_player.Motion.VerticalVelocity, 0f, "the fall has arrived");
-
-            Tick(1, true);
-            Assert.AreEqual(_physics.GroundedGravity - _physics.Gravity * Dt, _player.Motion.VerticalVelocity,
-                0.01f, "contact absorbs the launch momentum (no press: the press is one tick's fact, D-039)");
-
-            PressJump(true);
-            Tick(59, true);
-            Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
-                "the jump re-arms on the next contact: a fresh press fires it (D-017 + D-039)");
-        }
-
-        // D-039's pin: the press is the shell's one-tick fact, so a press held through a landing does NOT
-        // bounce. The landing absorbs the launch, and only a **fresh** press fires the next jump — this is
-        // the gate that keeps bunny-hop out of the model, and it replaces D-017's "a held press bounces" pin.
+        // D-039's pin: a press held through a landing does NOT bounce. The gate is two conditions - press fact
+        // plus grounded - with zero stored jump state, so the landing absorbs the launch and only a fresh press
+        // fires. This is the gate that keeps bunny-hop out of the model (the user's play check, 2026-11-23).
         [Test]
         public void PressHeldThroughALanding_DoesNotReBounce()
         {
@@ -185,70 +131,23 @@ namespace Flame_n_Blame_Challenge.Tests
             Assert.AreEqual(1, _player.Motion.ActivePushCount, "one launch entry, never one per contact");
         }
 
-        // The jump is the same mechanism as an external push: authored, not coded. Gravity off so the
-        // launch is the preset's integral alone, and doubling Force doubles the launch.
-        [Test]
-        public void JumpStrengthIsAuthored_NotHardcoded()
-        {
-            _physics.Gravity = 0f;
-
-            PressAndFire();
-            Tick(59, true);
-            float first = _player.Motion.VerticalVelocity;
-
-            float firstForce = _presets.PresetOf(PushType.PlayerJump).Force;
-
-            SetUp();
-            _physics.Gravity = 0f;
-            _presets.Presets = new[] { Presets.Sustained(PushType.PlayerJump, firstForce * 2f, 1f) };
-
-            PressAndFire();
-            Tick(59, true);
-
-            Assert.AreEqual(2f * first, _player.Motion.VerticalVelocity, LaunchTolerance,
-                "twice the authored Force gives twice the launch, so the jump is data-driven");
-        }
-
-        // Mass is authored: the same preset shoves a heavier player half as much. A heavier player is a
-        // player built with the heavier Mass - the domain reads authored numbers when it is constructed,
-        // and an asset does not change under a live session (D-012).
-        [Test]
-        public void HeavierPlayerLaunchesLower_FromTheSamePreset()
-        {
-            _physics.Gravity = 0f;
-
-            PressAndFire();
-            Tick(59, true);
-            float light = _player.Motion.VerticalVelocity;
-
-            _physics.Mass *= 2f;
-            _input = new StubInput();
-            _player = new Player(_input, _physics, _control, _presets);
-
-            PressAndFire();
-            Tick(59, true);
-
-            Assert.AreEqual(light * 0.5f, _player.Motion.VerticalVelocity, LaunchTolerance,
-                "the same preset shoves a heavier player half as much");
-        }
-
-        // T14a - standing: the carry is exactly zero. This is the case that used to produce 0/0 = NaN, so the
-        // expectation is "no momentum", not "no crash": a swallowed NaN would read as a pass on a magnitude.
+        // Standing: the carry is exactly zero. This is the case that used to produce 0/0 = NaN, so the
+        // expectation is "no momentum", not "no crash": a swallowed NaN reads as a pass on a magnitude (G-023).
         [Test]
         public void StandingJump_CarriesNoMomentum_HeightIsThePreset()
         {
             PressAndFire();
             Tick(59, true);
 
-            Assert.AreEqual(0f, _player.Motion.PushVelocity.magnitude, Tolerance,
-                "standing carries zero, not NaN");
+            Assert.AreEqual(0f, _player.Motion.PushVelocity.magnitude, Tolerance, "standing carries zero, not NaN");
             Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
                 "the height is the authored preset");
         }
 
-        // T14b - the rule D-034 chose: the player's own speed is carried into the push channel, and the
-        // vertical launch stays the preset's number. A tilt model fails the second assertion (в€љ2 lower), a
-        // ratio model fails the first (it carries proximity to the target speed, not speed).
+        // D-034's rule: the player's own speed is carried into the push channel as inertia, and the vertical
+        // launch stays the preset's number. A tilt model fails the second expectation (it is sqrt(2) lower), a
+        // ratio model fails the first (it carries proximity to the target speed, not speed). The ground's ONE
+        // rate (D-038) eats the carry on the tick it is added.
         [Test]
         public void RunningJump_CarriesOwnSpeed_HeightIsUnchanged()
         {
@@ -266,87 +165,6 @@ namespace Flame_n_Blame_Challenge.Tests
             Tick(59, true);
             Assert.AreEqual(PresetLaunch(), _player.Motion.VerticalVelocity, LaunchTolerance,
                 "the launch height is the preset, not the preset minus a tilt");
-        }
-
-        // T14c - "the lower the speed, the less impulse": walk (5) and sprint (8), the same preset. Each
-        // carry is asserted against the authored speed it came from, so the expectation is analytic twice.
-        [Test]
-        public void SlowerRun_CarriesLess_TheLaunchIsTheSame()
-        {
-            float[] carries = new float[2];
-            for (int run = 0; run < 2; run++)   // 0 = walk, 1 = sprint
-            {
-                SetUp();
-                _input.InputDirection = new Vector2(1f, 0f);
-                _input.IsRunning = run == 1;
-                Tick(60, true);
-                float speed = _player.Movement.DesiredVelocity.magnitude;
-
-                PressJump(true);   // the press fires on the tick it is seen
-
-                carries[run] = _player.Motion.PushVelocity.x;
-                Assert.AreEqual(speed * (1f - _physics.GroundFriction * Dt), carries[run], 0.02f,
-                    "the carry is the speed the player had, decayed by the ground's one rate on the jump tick (run "
-                    + run + ")");
-            }
-
-            Assert.Greater(carries[1], carries[0], "a sprint carries more than a walk");
-        }
-
-        // T14d - the invariant "velocity never exceeds MaxPushSpeed" on the jump channel: an authored carry
-        // above the cap saturates, it does not launch the player at 16 m/s. Authored numbers are set before
-        // construction (D-012), so this is a player built with the cap.
-        [Test]
-        public void JumpCarry_AboveTheCap_SaturatesAtMaxPushSpeed()
-        {
-            _physics.MaxPushSpeed = 12f;
-            _physics.JumpCarry = 2f;
-            Rebuild();
-
-            _input.InputDirection = new Vector2(1f, 0f);
-            _input.IsRunning = true;
-            Tick(60, true);
-            Assert.AreEqual(_control.PlayerSpeedSprint, _player.Movement.DesiredVelocity.magnitude, Tolerance,
-                "the run has reached the authored sprint speed");
-
-            PressJump(true);
-
-            Assert.AreEqual(12f, _player.Motion.PushVelocity.x, Tolerance,
-                "8 * 2 saturates at the cap, the channel is never above MaxPushSpeed");
-        }
-
-        // T14e - the carry is momentum, not a force: it outlives the jump tick and decays only by the
-        // authored AirDrag. The expectation is the analytic geometric decay, the same shape as T1/T13.
-        [Test]
-        public void JumpCarry_OutlivesTheJumpTick_AndDecaysOnlyByAirDrag()
-        {
-            _physics.AirDrag = 0.5f;
-            Rebuild();
-
-            _input.InputDirection = new Vector2(1f, 0f);
-            Tick(60, true);
-            float carried = _player.Motion.ControlVelocity.x;
-
-            float carryAfterGroundTick = carried * (1f - _physics.GroundFriction * Dt);
-            PressAndFire();
-            Assert.Greater(_player.Motion.PushVelocity.x, carryAfterGroundTick * 0.9f,
-                "the carry is there on the jump tick, after the ground took its own rate off it (D-038)");
-
-            const int flight = 60;
-            Tick(flight, false);
-
-            float expected = carryAfterGroundTick * Mathf.Pow(1f - _physics.AirDrag * Dt, flight);
-            Assert.AreEqual(expected, _player.Motion.PushVelocity.x, 0.05f,
-                "the carry flies and decays by AirDrag alone, once the ground tick is accounted for");
-            Assert.Greater(_player.Motion.VerticalVelocity, 0f, "the launch is still rising, so the flight is real");
-        }
-
-        /// Authored numbers are read at construction (D-012), so a scenario that needs a different `JumpCarry`
-        /// or cap sets them and then builds the parts, exactly as the session does.
-        private void Rebuild()
-        {
-            _input = new StubInput();
-            _player = new Player(_input, _physics, _control, _presets);
         }
     }
 }

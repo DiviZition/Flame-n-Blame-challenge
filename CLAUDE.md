@@ -12,10 +12,11 @@ rewrite.
   меню вариантов, без жаргона. Что сделано, что это значит, что осталось. Если нужен выбор — один
   короткий вопрос.
 - Before taking any action — a short overview of what you are going to do, and ask the user to agree.
-- **One task at a time.** A big prompt → break it into tasks and show the plan. Do one task → run its
-  test → save → stop and verify with the user (unless told to do all at once).
-- Every task has a test; the task is done only when the test passes. A test runs **once**, under
-  90 seconds — no repeat loops.
+- **One task at a time.** A big prompt → break it into tasks and show the plan. Do one task → save →
+  hand it to the user to play; **the user's verdict is the task done** (unless told to do all at once).
+- **The suite is a regression net, not a per-task gate:** it runs **once**, at the end of a session, under
+  90 seconds — never per task. Tests exist only for rules the user has approved (D-026), and **one rule
+  gets one test**: a test that restates a rule from a second angle is deleted, not kept (D-050).
 - **Tests run on code, not on the scene:** `unity cmd test run --mode editor` — EditMode, no Play Mode,
   no scene load. Play Mode is for feel checks with `capture game_view`, not for a test suite.
 - **Write tests only for** Domain, UseCases (the session/orchestration layer) and **invariants**
