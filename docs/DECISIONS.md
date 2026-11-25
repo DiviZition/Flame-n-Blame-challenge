@@ -1,881 +1,316 @@
-# DECISIONS.md — Architectural Decision Log
+# DECISIONS.md — Decision Log
 
-Records important, non-trivial decisions made during development, so we don't relitigate them
-later or "quickly improve" something and spend hours fixing what we broke.
+Two jobs: §Current structure (the state map, rewritten freely) and the log D-001…D-048 — the *why* of non-obvious calls, so they are not re-litigated.
 
-**Rules:**
-- Every entry gets a sequential ID (`D-001`), a date, and a status.
-- Write entries *when* a decision is made, not after.
-- A decision can only be changed by adding a new entry that supersedes the old one — never
-  silently edit or delete an old decision (mark the old one `Superseded by D-XXX`).
-- "Trivial" (obvious, easily reversible, no system-wide impact) → don't log it here.
-- One decision per entry. Keep the *why* — that's the part we'll forget.
-
-**Entry format:**
-```
-## D-XXX: <Short title>
-- **Date:** YYYY-MM-DD
-- **Status:** Accepted | Superseded by D-YYY | Reverted
-- **Context:** What problem or constraint forced a choice.
-- **Decision:** What we chose.
-- **Why:** The reasoning, including the alternatives we rejected.
-- **Consequences:** What this locks us into / what we now owe.
-```
+**Rules:** one entry = `## D-xxx: title` + `**Date · Status · supersede**` + `Decision:` + `Why:`, **≤ 10 lines per entry, ≤ 400 for the file, ≤ 320 chars per line.** Log only the non-obvious: obvious, reversible, no system impact → not logged. **Entries are editable** — Decision and Why state the
+rule as it stands today, history is in git (`git log --follow docs/DECISIONS.md`), a supersede is a name in the Status line, never a retelling. **Never in this file:** measured numbers, gate outputs, test counts, file lists, CLI commands, scene coordinates, probe values — they go to the commit body
+and `TODO.md`.
 
 ---
 
-## Current structure (map, updated whenever reality moves)
+## Current structure (state map, rewritten freely)
 
-Verified 2026-11-20 against the files and the live editor, not against old notes.
+**Assemblies:** `Assets/_Core/FlameNBlame.asmdef` (runtime, `rootNamespace: Flame_n_Blame_Challenge`; its `name` field is the typo `FlameNBlame-asmdf` — TODO; carries the `CartoonFX` vendor-demo reference, G-001) and `Assets/_Core/Tests/FlameNBlame.Tests.asmdef` — **editor-only**, so the suite runs
+as **EditMode** on code (D-026).
 
-**Assemblies:** `Assets/_Core/FlameNBlame.asmdef` (its `name` field is the typo `FlameNBlame-asmdf`,
-TODO; `rootNamespace: Flame_n_Blame_Challenge`; GUID references; includes the `CartoonFX` vendor-demo
-reference, G-001) and `Assets/_Core/Tests/FlameNBlame.Tests.asmdef` — **editor-only**
-(`includePlatforms: ["Editor"]`), so the 19 `[Test]` tests run as **EditMode**, on code with stub ports,
-no scene load (D-026).
+**Layers ↔ folders ↔ namespaces** (`Assets/_Core/Scripts/`): Composition `Flame_n_Blame_Challenge` at the root; UseCases `.UseCases`; Domain `.Domain` in `Domain/`; Adapters `.Adapters` in `InterfaceAdapters/` (D-014, D-012).
 
-**Folders ↔ namespaces ↔ layers:**
+**Domain:** `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData`, `PushPresetData`, `BurnableSystem` (`IBurnable`, `BurnableObject`, `IBurnablePreset`, `BurnablePreset`), `FireSpreadSystem`,
+`IBurnableHost`.
 
-| Folder (`Assets/_Core/Scripts/`) | Namespace | Layer | Contents |
-|---|---|---|---|
-| `` (root) | `Flame_n_Blame_Challenge` | Composition | `Bootstrapper.cs`, `GameUpdater.cs` |
-| `UseCases/` | `.UseCases` | Application | `GamePlaySession.cs` |
-| `Domain/` | `.Domain` | Domain | `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData` |
-| `InterfaceAdapters/` | `.Adapters` | Adapters | ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPhysicsSettings`, `IControlSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings` + `Game Settings.asset`, `PhysicsSettings` + `Physics Settings.asset`, `PlayerControlSettings` + `Player Control Settings.asset`, `PushPresets` + `Push Presets.asset`, `ResourceSpawner` + `ResourcesProvider` + `Resources.asset`, `PlayerMotor`, `HydrantPush` |
+**Adapters:** ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPhysicsSettings`, `IControlSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings`, `PhysicsSettings`, `PlayerControlSettings`, `PushPresets`, `ResourceSpawner`, `ResourcesProvider`, `PlayerMotor`, `HydrantPush`,
+`BurnableShell`, `SmokePuffPool`.
 
-`Scripts/Unity/` and `Scripts/Application/` were deleted (2026-11-19, D-012). `HydrantPush` moved with
-its `.meta` (GUID `75c4001556e8f7e47aca53aa50ef5170`) — that GUID is what the scene binds to.
+**Authored assets:** `Game Settings.asset` (two references, no numbers), `Physics Settings.asset` (mass, gravity, ground rate, drags, cap, jump carry), `Player Control Settings.asset` (speeds, accelerations, look), `Push Presets.asset` (`[SerializeReference]` list keyed by `PushType`),
+`Resources.asset`.
 
-**Who talks to what:** `Bootstrapper` (one `Update()`) → `GameUpdater` → registered `IUpdatable` in
-registration order `PlayerInputMain` → `Player` → `PlayerMotor`. `Player` composes
-`PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings, IPushPresets)`, exposes `Velocity`, forwards
-`ReceivePush(preset, direction)` (two overloads: Impulse, Sustained) and `ReportContact(grounded, normal)`.
-Shells: `PlayerMotor` (`Move(Velocity*dt)`, reports `isGrounded` and the contact normal from Unity's
-`OnControllerColliderHit`, forwards `ApplyForce(preset, direction)`), `HydrantPush` (trigger →
-`ApplyForce(preset, PushDirection.forward)`). A source decides **whether** to fire; `PlayerMotion` decides
-what a fired push does (D-016, D-021). `PlayerMotion`'s channels: **horizontal** `ControlVelocity` (input) +
-`PushVelocity` (shove), and **vertical** `VerticalVelocity` (gravity + every launch); the ground absorbs
-vertical **only when it points down**, so a launch that is strong enough to rise accumulates (D-028).
-Presets are authored in `Push Presets.asset`, keyed by `PushType` (D-028). Authored numbers are split into
-`Physics Settings.asset` (body, contact, damping, the push cap, the jump carry) and
-`Player Control Settings.asset` (the three speeds, the two steering rates, the look); `Game Settings.asset`
-holds the two references and nothing else (D-037).
+**Who talks to what:** `Bootstrapper` (the one `Update()`) → `GameUpdater` → registered `IUpdatable` in registration order `PlayerInputMain → Player → PlayerMotor → FireSpreadSystem → BurnableShell[]` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
+IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`, exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A
+source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` copies `FireLevel` and `Charredness` into the shared material and reads the sign of `ApplyStream(amount, contact)` (D-046); the **one** `SmokePuffPool` is handed in by `Bootstrapper`, never scanned for
+(D-048, G-040). The session never scans the scene for a service it can be given.
 
-**Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` (GUID
-`40c42f9779f68674690ed56e87150acf`) + Main Camera (Camera + CinemachineBrain); `=== World` →
-FX/Directional Light + `GrayBox Level` (Ground 10×10 plane, `Hydrant` with `CapsuleCollider` +
-`HydrantPush` + `PushDirection`, `Burnable Box` at world (4.56, 0.34, 6.18), `Slope`, `Reference Cube`,
-`Player Spawn Point` at (2.84, 0, 7.78)). **There is no `Player` GameObject, so `PlayerMotor` is
-attached to nothing (B-004); no `SpineProxy`; the scene is not in Build Settings (G-003).**
-`EditorBuildSettings.asset` still lists the deleted `SampleScene.unity`. The `House Blockade` test wall
-(CLI scene-driving proof, D-023) was deleted on 2026-11-20 by the user's call.
+**Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` + `Puff Pool` + Main Camera (CinemachineBrain); `=== World` → light + `GrayBox Level` (Ground, `Hydrant` with `HydrantPush` and `PushDirection` pitched −45°, `Burnable Box`, `Slope`, `Reference Cube`, `Player Spawn
+Point`). **No `Player` GameObject, so `PlayerMotor` is attached to nothing (B-004); no prop carries a `BurnableShell`, so nothing burns; the scene is not in Build Settings (G-003).**
 
-**Strays:** `Player.cs` at repo root is an untracked copy of `_Core/Scripts/Domain/Player.cs`;
-`X Bot@Falling.fbx` sits in the code folder. Both are housekeeping (TODO).
+**Strays:** `Player.cs` at repo root (untracked copy of `Domain/Player.cs`) and `X Bot@Falling.fbx` in the code folder — housekeeping (TODO).
 
 ---
 
-- **Date:** 2026-11-15
-- **Status:** Accepted (made at project creation)
-- **Context:** New 3D game project; needed a modern, supported pipeline with VFX Graph, Shader Graph and scalable quality (PC + mobile profiles exist in `Assets/Settings/`).
-- **Decision:** Unity 6 6000.6.5f1, Universal Render Pipeline 17.6.0.
-- **Why:** Unity 6 LTS line; URP covers both PC and mobile perf targets; VFX Graph available for fire/effects. HDRP rejected as overkill for the scope; Built-in rejected for tooling stagnation.
-- **Consequences:** Must use URP-compatible shaders/assets; some HDRP-only assets are out.
-- *(Note 2026-11-16: the "PC + mobile profiles" premise in the Context no longer holds — see D-009.)*
+## D-001: Unity 6 + URP
+- **2026-11-15 · Accepted · the PC+mobile-profile premise retired by D-009**
+- **Decision:** Unity 6000.6.5f1, URP 17.6.0.
+- **Why:** Unity 6 LTS, VFX Graph available, URP covers the shipped profiles; HDRP overkill, Built-in stagnant.
 
-## D-002: Input System package only (no legacy Input)
-- **Date:** 2026-11-15
-- **Status:** Accepted (project setting `activeInputHandler: 1`)
-- **Context:** Project must handle keyboard/gamepad cleanly and possibly rebinding.
-- **Decision:** Unity Input System 1.20.1 exclusively. Actions live in `Assets/_Core/InputSystem_Actions.inputactions` (Player + UI maps).
-- **Why:** Legacy `Input.*` is deprecated-path; Input System gives device abstraction and action maps for free.
-- **Consequences:** Never call legacy `Input.GetAxis/GetKey`; any new action must be added to the `.inputactions` asset. PlayerInput or direct `InputAction` usage both OK.
+## D-002: Input System package only
+- **2026-11-15 · Accepted · `activeInputHandler: 1`**
+- **Decision:** Unity Input System 1.20.1 only; actions in `InputSystem_Actions.inputactions`, regenerated, never hand-edited.
+- **Why:** Device abstraction and action maps for free; legacy `Input.*` is a deprecated path — never call `Input.GetAxis/GetKey`.
 
-## D-003: All game code lives under `Assets/_Core` behind one asmdef
-- **Date:** 2026-11-15
-- **Status:** Accepted
-- **Context:** Mixed workspace of store assets; need a hard boundary between "our code" and "vendor code".
-- **Decision:** `Assets/_Core/{Art,Scenes,Scripts}` is the only place game code goes. Runtime assembly: `FlameNBlame.asmdef` referencing InputSystem, PrimeTween, Cinemachine, UniTask.
-- **Why:** Vendor folders get overwritten by asset-store updates; a single game assembly keeps compile times low and dependency direction explicit.
-- **Consequences:** New vendor dependency (e.g., Feel's `MoreMountains.Tools`) must be added to the asmdef reference list explicitly. Editor-only code goes in a separate `_Core/Editor` asmdef, never in the runtime one.
+## D-003: All game code under `Assets/_Core`, one asmdef
+- **2026-11-15 · Accepted**
+- **Decision:** `Assets/_Core/{Art,Scenes,Scripts}` is the only place game code goes, in one runtime assembly.
+- **Why:** Vendor folders get overwritten by updates; one assembly keeps compile low and the dependency direction explicit. New vendor references are added explicitly, editor-only code gets its own asmdef (G-001).
 
 ## D-004: PrimeTween for tweens, UniTask for async
-- **Date:** 2026-11-15
-- **Status:** Accepted (made at project setup)
-- **Context:** Need tweening and async without allocation churn or coroutine spaghetti.
-- **Decision:** PrimeTween (local tgz package) for all tweening; UniTask for all async/await.
-- **Why:** PrimeTween is allocation-free and simple; UniTask integrates with Unity's player loop and replaces `StartCoroutine` entirely.
-- **Consequences:** Don't use DOTween (not installed) or `StartCoroutine` in new code; both libs are referenced by the game asmdef already.
+- **2026-11-15 · Accepted**
+- **Decision:** PrimeTween for all tweening, UniTask for all async. No DOTween, no `StartCoroutine`.
+- **Why:** Allocation-free, no coroutine spaghetti, integrates with the player loop.
 
-## D-005: Feel 6.3 for game juice and feedback
-- **Date:** 2026-11-15
-- **Status:** Accepted (made at project setup)
-- **Context:** Game needs impactful feedback (screenshake, haptics, particles, sound) without hand-rolling each effect.
-- **Decision:** Use MMF_Player feedbacks from `Assets/Feel` for juice; Nice Vibrations (bundled) for haptics.
-- **Why:** Battle-tested component library; AI skills for it ship in `Assets/Feel/Skills/`.
-- **Consequences:** Custom code must stay out of `Assets/Feel/` (updates overwrite it). Feel-specific workflows follow the skills in `Assets/Feel/Skills/`.
-- *(Note 2026-11-16: the haptics half of this decision is now dormant — see D-010.)*
+## D-005: Feel 6.3 for juice
+- **2026-11-15 · Accepted · the haptics half dormant since D-010**
+- **Decision:** `MMF_Player` feedbacks from `Assets/Feel` for screenshake, particles, sound, time.
+- **Why:** A battle-tested library beats hand-rolling each effect. Custom code stays out of `Assets/Feel/` (G-006), Feel's `SKILL.md` is read before Feel work (G-004).
 
-## D-006: Root-level Markdown files as project memory
-- **Date:** 2026-11-15
-- **Status:** Superseded by D-011
-- **Context:** Decisions, mistakes, bugs and tasks need to survive session boundaries for both humans and AI agents.
-- **Decision:** `DECISIONS.md`, `GOTCHAS.md`, `BUGS.md`, `TODO.md`, `STYLE.md` at repo root; `CLAUDE.md` points to them and stays under 200 lines.
-- **Why:** Plain files are readable by everyone and versioned with the code; CLAUDE.md is re-read by every agent session, the others are consulted on demand.
-- **Consequences:** Updating these files is part of doing the work, not an afterthought.
+## D-006: Root-level Markdown as project memory
+- **2026-11-15 · Superseded by D-011**
 
 ## D-007: WebGL is the shipping target from day one
-- **Date:** 2026-11-16
-- **Status:** Accepted
-- **Context:** The TDD (§4) lists "Перевірка на WebGL" as a polish-phase task, i.e. a check at the end. The user overrode that: web is "must must must have", so it becomes a constraint we design under rather than a surprise we discover. Our whole scope — fire propagation, an extinguisher particle spray, physics impulses and a player launch — is precisely the mix that fails a late web port.
-- **Decision:** WebGL is the reference target for every system. The editor/PC is where we author; a WebGL build must exist and run from the first week, and each new system is judged against a web build, not against the editor.
-- **Why:** Retrofitting web is the known failure mode for this kind of demo: gameplay code is effectively single-threaded under wasm, so physics + particles + fire propagation must share one budget that is decided *before* those systems are authored, not balanced after. Download size caps asset imports, memory is capped by the browser tab, and haptics simply do not exist there. Porting at the end would mean rewriting the very systems that are the entry to the challenge.
-- **Consequences:** Every system gets a perf budget before it gets implemented (tracked in TODO.md). A web build runs every session, so "compiles and looks right in the editor" is explicitly not done. No thread-dependent APIs; IL2CPP stripping and shader variants can only be trusted in a real web build. Quality levels and the pipeline asset must actually route WebGL to a working pipeline (currently they don't — B-001). Makes URP 17's VFX Graph heavier to use than on PC, so prefer Particle System for the spray (the TDD suggests exactly that).
-- *(Note 2026-11-19: the "a web build runs every session" clause is suspended by D-019. The budget-before-code rule, the "editor is not done" standard and the no-haptics rule are untouched.)*
+- **2026-11-16 · Accepted · the "web build every session" clause suspended by D-019**
+- **Decision:** WebGL is the reference target for every system: a written perf budget **before** code, fire + particles + physics sharing one budget, no haptics at all.
+- **Why:** Retrofitting web is the known failure mode for this scope — gameplay code is effectively single-threaded under wasm, so the budget is decided before the systems are authored. "Works in the editor" is not done.
 
-## D-008: Scope locked to the four TDD pillars
-- **Date:** 2026-11-16
-- **Status:** Accepted
-- **Context:** Two documents disagreed about what to build. The brainstorm in `Preproduction.md` scored "catch a person on a trampoline" 8/10 and never listed the extinguisher; the TDD commits to extinguisher + hydrant catapult. Confirmed with the user: **the TDD is the final output.**
-- **Decision:** Four pillars, and nothing else: (1) FPS controller with movement/camera/jump, `E`/LMB interaction and a single carry slot; (2) an object-based fire system where burnables ignite, blacken, collapse, can be extinguished, and re-ignite nearby burnables after ~10s of proximity so the fire propagates itself; (3) the extinguisher as a grabbable that extinguishes *and* applies force; (4) the hydrant catapult. Win condition: the house is extinguished and the player walks out.
-- **Why:** The hydrant gives the biggest read-at-a-glance payoff for almost no animation cost (rotate + impulse + feedback), which is the exact axis the judging criteria reward. The trampoline needs ~9 animations, ragdoll tuning and IK experience the preproduction notes already flagged as hard. A fluid/grid fire simulation is not web-viable under D-007, and the TDD says so too ("об'єкти горіння, не симуляція рідини") — state-based fire costs O(burnables) instead of O(cells).
-- **Consequences:** The TDD's deferred list is now official: meta/scoring, full co-op, building destruction, ragdoll/IK, blowing the dam. Anything outside the four pillars needs a decision entry before it enters scope. Fire tuning starts from the TDD's numbers (10s spread proximity, burn-then-collapse). The player-pushback coupling in pillar 3 is still an open design question the TDD itself raises — it needs its own decision before implementation.
+## D-008: Scope locked to the four pillars
+- **2026-11-16 · Accepted**
+- **Decision:** (1) FPS controller with move/look/jump, `E`/LMB interaction, one carry slot; (2) object-based fire — burnables ignite, blacken, collapse, are extinguished, re-ignite neighbours after ~10 s of proximity; (3) an extinguisher that extinguishes **and** applies force; (4) the hydrant
+  catapult. Win: the house is out and the player walks out.
+- **Why:** The hydrant gives the biggest read-at-a-glance payoff for almost no animation cost, which is what judging rewards; a trampoline needs ~9 animations, ragdoll, IK. A fluid/grid fire is not web-viable (D-007): state-based fire is O(burnables), not O(cells). Deferred: scoring, co-op,
+  destruction, ragdoll/IK, the dam. Outside the pillars → a new entry. **The design contract files are not in the repo** (README): cite pillars through this entry, never "TDD §n".
 
-## D-009: One render pipeline asset, named for its shipping target
-- **Date:** 2026-11-16
-- **Status:** Accepted
-- **Context:** With web as the target (D-007), keeping a PC-tuned pipeline as the active one means testing one thing and shipping another. The user renamed the template `PC_RPAsset`/`PC_Renderer` to `Web_RPAsset`/`Web_Renderer` and deleted the mobile ones, planning to re-tune later.
-- **Decision:** A single active pipeline, `Assets/Settings/Web_RPAsset.asset` + `Web_Renderer.asset`, named for the target we ship rather than for a hardware class. Quality levels will be re-cut for web (TODO).
-- **Why:** One pipeline removes drift between what we author and what we ship; naming by target makes that drift visible the moment someone adds a second "just for testing" asset.
-- **Consequences:** Partially supersedes D-001's PC+mobile premise. The renamed asset still carries PC-grade settings (HDR, shadow distance, post-processing) — re-tuning is an open task, not a completed one. **Renaming did not rebind anything**: `Web_RPAsset` is still attached only to the "PC" quality level, that level excludes WebGL, and the deleted mobile asset left level 0 pointing at a dead GUID, so a web build currently has no pipeline at all (B-001, G-010). `Mobile_RPAsset` is gone and must not be assumed available as a quality-tier fallback.
+## D-009: One render pipeline asset, named for the shipping target
+- **2026-11-16 · Accepted · renaming rebinds nothing: B-001, G-010**
+- **Decision:** A single active pipeline named for the target we ship, not for a hardware class; quality levels re-cut for web (TODO).
+- **Why:** One pipeline removes drift between what we author and what we ship; naming by target makes that drift visible the moment someone adds a second "just for testing" asset. Renaming bought a name, not a retune.
 
-## D-010: Feel for juice; Nice Vibrations kept but dormant
-- **Date:** 2026-11-16
-- **Status:** Accepted
-- **Context:** Feel's value here is the whole feedback toolkit (screenshake, particles, sound, time), not the haptics — and haptics don't exist on our shipping target (D-007). Deleting Nice Vibrations was considered.
-- **Decision:** Keep `Assets/Feel/NiceVibrations` in the project, unreferenced by our code, and use Feel's `MMF_Player` for juice. Deleting it was rejected as not worth the risk.
-- **Why:** The user's call: NV is dormant weight, not a hazard, and an asset-store folder removal can dangle GUIDs inside Feel's own prefabs and meta files for zero gain. Feel is genuinely useful far beyond vibration.
-- **Consequences:** Never call NiceVibrations from our code, and never add a `NiceVibrations*` module to an `MMF_Player`'s inspector list — that would recreate the hard dependency and re-add runtime init cost. Every effect has to read as "felt" without haptics, because on web there is nothing to feel (G-011). Haptics may be revisited only as a PC-only nicety if it ever becomes free.
+## D-010: Nice Vibrations kept, dormant
+- **2026-11-16 · Accepted**
+- **Decision:** `Assets/Feel/NiceVibrations` stays, unreferenced by our code; never called, never in an `MMF_Player`.
+- **Why:** Removing an asset-store folder can dangle GUIDs inside Feel's prefabs and `.meta` files for zero gain (G-011).
 
 ## D-011: Project documentation lives in `docs/`
-- **Date:** 2026-11-16
-- **Status:** Accepted (supersedes D-006)
-- **Context:** The memory docs were scattered at repo root, which reads as clutter next to `Assets/`, `Packages/` and the solution files — and the design documents (TDD + preproduction) now have to be versioned with the project rather than living in `D:\Downloads\`.
-- **Decision:** `docs/` holds everything: the design contract (`TDD.md`, `Preproduction.md`) and the memory set (`DECISIONS.md`, `GOTCHAS.md`, `BUGS.md`, `TODO.md`, `STYLE.md`), indexed by `docs/README.md`. Repo root keeps only `README.md` (what the project is) and `CLAUDE.md`.
-- **Why:** One folder for "what we know", two root files for "what this is" and "what an agent must load". The design docs are the contract, so they belong under version control beside the memory they generate.
-- **Consequences:** All path references point at `docs/…`. **`CLAUDE.md` stays at repo root** — Claude Code only auto-loads it from there, and moving it would silently drop every project instruction from future sessions (G-009). Root `CLAUDE.md` therefore stays a thin entry point that points into `docs/` instead of duplicating it, and keeping the two in sync is now a thing we owe.
+- **2026-11-16 · Accepted · supersedes D-006 · routing re-cut 2026-11-25 (see `docs/README.md`)**
+- **Decision:** `docs/` holds the memory set; repo root keeps `README.md` (what the project is) and `CLAUDE.md` (what an agent loads).
+- **Why:** One folder for "what we know", two root files for "what this is". `CLAUDE.md` **must** stay at root — it is auto-loaded from there only (G-009).
 
-## D-012: Game logic as plain classes; Unity kept at the edge
-- **Date:** 2026-11-17
-- **Status:** Accepted
-- **Context:** The first code appeared before the shape was written down: `Bootstrapper` news up a session, `GamePlaySession`/`PlayerState`/`PlayerMovement` are plain classes, `PlayerInputMain` wraps the generated Input System actions behind `IPlayerInput`. Nothing in the docs said this was the approach, so the next system (or the next agent session) would have invented its own — and the natural Unity default, one MonoBehaviour per gameplay feature, is what D-007's shared web budget is worst at.
-- **Decision:** Four layers with one inward dependency direction — `Domain` (state and rules), `UseCases` (a session), `Adapters` (ports + their Unity-side implementations), and a single **composition root** (`Bootstrapper`) that is the only scene object knowing concrete types exist. Gameplay rules live in plain C# classes; MonoBehaviours are only (a) the composition host and (b) thin **shells** Unity must call — physics/trigger callbacks, `Animator` behaviours, `MMF_Player` hosts, prefab holders — which forward what they observed into a plain class and hold no rules. Authored values are copied out of the Inspector/`ScriptableObject` into plain data objects (`MovementData`, `BurnableData`) passed to constructors. Unity math and query types (`Vector3`, `RaycastHit`) cross the boundary freely.
-- **Why:** Ordering, cost and testability become visible in code instead of in scene wiring that a diff can't show. It lets the four pillars be authored in any order without fighting the scene file, lets the fire rules be asserted on without loading a scene (G-008's test plan), and lets a system that measures badly on web be re-written without touching the object holding it. The alternative — MonoBehaviour-per-feature with self-registration in `Awake` — makes execution order a script-execution-order setting, makes a half-built graph legal, and pays a per-object Unity scheduling cost whether or not the body is empty. Rejected as overkill for 8 days: a full Unity-free domain with our own math types, and DI/ECS frameworks.
-- **Consequences:** `Scripts/Domain/` and `Scripts/UseCases/` folders have to appear; the types currently inside `Bootstrapper.cs` must move out of it (also a STYLE.md one-type-per-file break). Every physics/trigger touchpoint needs a shell, so "just put it on the prefab" is no longer a legal move — and the `ARCHITECTURE.md` §4 rules are what an implementer follows. Every adapter that subscribes externally becomes `IDisposable`, and the scene-reload path (menu/pause, phase 1) must be able to rebuild the graph from the root. Decided **now**, before pillars 2 and 3 exist, precisely because the extinguisher and hydrant are the two systems most tempted to skip it.
+## D-012: Game logic as plain classes, Unity kept at the edge
+- **2026-11-17 · Accepted**
+- **Decision:** Layers `Domain` (state + rules), `UseCases` (the session), `Adapters` (ports + Unity-side implementations), one composition root (`Bootstrapper`) — the only scene object that knows concrete types. MonoBehaviours are the composition host and thin shells that forward what they observed
+  and hold no rules; authored values are copied out of the Inspector into plain data objects passed to constructors, Unity math types cross the boundary freely.
+- **Why:** Ordering, cost and testability become visible in code, not in scene wiring a diff cannot show. MonoBehaviour-per-feature makes execution order a script-execution-order setting, makes a half-built graph legal, and pays a per-object scheduling cost whether the body is empty. Rejected as
+  overkill for 8 days: a Unity-free domain with our own math types, DI/ECS.
 
-## D-013: One tick we own — `GameUpdater` for the update step, a fixed-step owner for physics
-- **Date:** 2026-11-17
-- **Status:** Accepted
-- **Context:** With gameplay classes no longer MonoBehaviours (D-012), something has to call them, and pillars 2 and 3 are impulse-driven physics (spray shoves objects *and the player*, hydrant launches the player) which cannot be driven off a variable frame step.
-- **Decision:** Exactly one `Update()` in the scene — `Bootstrapper` → `GameUpdater.Update(time, deltaTime)` → every registered `IUpdatable`, in **registration order**. `GameUpdater` dedupes on register and removes through a staged queue with swap-remove. A fixed-step counterpart (`IFixedUpdatable`, driven from one `FixedUpdate()` on the same host with `Time.fixedDeltaTime`) is part of this design; physics queries and impulses belong to it, visuals and camera read state on the update step.
-- **Why:** One place to pause, step, measure, or throttle a system — fire propagation is polled on a schedule rather than run per frame (STYLE.md), and a system we drive can simply run every 3rd tick. Registration order as the ordering contract is reviewable in a diff, unlike script execution order. N `MonoBehaviour.Update` bodies cost per-object marshalling that only shows up in a web build (G-010's pattern); a list of plain objects does not. The swap-remove + queued-removal shape means an updatable can stop itself mid-loop safely and neither path allocates per frame.
-- **Consequences:** `IFixedUpdatable` and its host are **not implemented yet** — tracked in TODO.md so the first physics pillar builds it instead of re-deciding it. Registration order is a real responsibility: getting it wrong is a silent gameplay bug, not a compile error. Nothing else may define Unity's `Update`/`FixedUpdate` except the host and the shells that *must* be MonoBehaviours (D-012). Per-system cost is now attributable, so the budgets TODO.md asks for become enforceable per system.
-- *(Note 2026-11-19: the `IFixedUpdatable` half of this decision is superseded by D-018 — the fixed-step host is not built. The single-`Update` host, registration order as the ordering contract, and staged removal stand, and `PlayerMotor`'s own `Update()` was deleted to restore the single-`Update` rule (D-016).)*
+## D-013: One tick we own, registration order is the contract
+- **2026-11-17 · Accepted · the fixed-step half superseded by D-018**
+- **Decision:** Exactly one `Update()` — `Bootstrapper` → `GameUpdater.Update(time, dt)` → every registered `IUpdatable` **in registration order**; dedupe on register, removal through a staged queue with swap-remove.
+- **Why:** One place to pause, step, measure, throttle a system. N `MonoBehaviour.Update` bodies pay a marshalling cost visible only in a web build; registration order is reviewable in a diff, unlike script execution order. Getting it wrong is a silent gameplay bug, not a compile error.
 
-## D-014: Namespace root is `Flame_n_Blame_Challenge`; folders and namespaces are allowed to differ
-- **Date:** 2026-11-17
-- **Status:** Accepted (supersedes the naming in STYLE.md §Namespaces and the example in G-002)
-- **Context:** Two names for the same thing were live at once: the code and the asmdef `rootNamespace` say `Flame_n_Blame_Challenge`, while STYLE.md §Namespaces, the G-002 rule and TODO all said `FlameNBlame`, by area (`FlameNBlame.Player`, `FlameNBlame.Combat`). Writing the architecture map forced the choice, because the map would otherwise freeze whichever one it happened to mention.
-- **Decision:** Root namespace **`Flame_n_Blame_Challenge`**, sub-namespaces by **layer** (`.Domain`, `.UseCases`, `.Adapters`), matching the asmdef `rootNamespace` that is already set. `FlameNBlame` stays the assembly/file name. The folder is `InterfaceAdapters/` while the namespace is `.Adapters` — deliberate, not drift: the folder names the pattern, the namespace stays short. Namespaces are by layer, not by feature.
-- **Why:** The user's call: keep what already compiles, and it is what the editor's `rootNamespace` will auto-insert for new files, so the convention holds itself instead of relying on everyone remembering to type it. Namespacing by layer keeps the dependency direction of D-012 legible from a `using` line; namespacing by feature would let `FlameNBlame.Fire` reference `FlameNBlame.Player` without anyone noticing. Renaming five files now is cheaper than renaming fifty later, but it buys nothing we need.
-- **Consequences:** STYLE.md §Namespaces and the G-002 rule are updated to match — this is the one place where editing an existing entry is correct, since the decision changed reality rather than correcting a mistake. The hyphenated-namespace bug itself (G-002) is resolved. Expect `using Flame_n_Blame_Challenge.Adapters;` in most files; the verbosity is accepted. The assembly's own `name` field is currently the typo `FlameNBlame-asmdf`; references to it are GUID-based, so fixing it is safe but cosmetic and belongs to the asmdef housekeeping task (G-001), not to this decision.
+## D-014: Namespace root `Flame_n_Blame_Challenge`, namespaces by layer
+- **2026-11-17 · Accepted · supersedes the naming in STYLE.md §Namespaces and the G-002 example**
+- **Decision:** Root `Flame_n_Blame_Challenge` + `.Domain` / `.UseCases` / `.Adapters`, matching the asmdef `rootNamespace`; `FlameNBlame` is the assembly name, never a namespace; folder names may name the pattern (`InterfaceAdapters/` → `.Adapters`).
+- **Why:** It compiles today and the editor auto-inserts it, so the convention holds itself. Namespaces by feature would let `…Fire` reference `…Player` invisibly; by layer the dependency direction is legible from a `using` line.
 
-## D-015: `docs/ARCHITECTURE.md` is the code map; DECISIONS.md stays the log
-- **Date:** 2026-11-17
-- **Status:** Accepted (extends D-011)
-- **Context:** The doc set routes by content type — one decision per DECISIONS entry, per-file conventions in STYLE.md, restrictions in GOTCHAS, tasks in TODO — and no file could hold "what the code looks like as a whole". A reader who wants the shape has to assemble it from D-003, D-012, D-013, D-014 and the code, and two sessions would assemble it differently.
-- **Decision:** `docs/ARCHITECTURE.md` is added: a living map (layers, dependency direction, tick ownership, Unity boundary, composition root, how to add a system), with the *why* and the alternatives kept in DECISIONS entries. Precedence is stated in the file: DECISIONS wins over ARCHITECTURE, ARCHITECTURE describes intent, the §real-vs-decided table says what today's code actually does. `docs/README.md` and `CLAUDE.md` gain pointers; STYLE.md §Docs gains the routing rule.
-- **Why:** Append-only one-decision-per-entry is the right shape for decisions and the wrong shape for a picture — that is not a flaw to fix by making DECISIONS looser, since D-006/D-011 show what happens when decisions get quietly re-litigated. A separate map risks doc sprawl, so the boundary is explicit: ARCHITECTURE may change freely as the shape changes and holds no rationale; DECISIONS is append-only and holds nothing but rationale.
-- **Consequences:** A new file to keep current — the map goes stale the moment a layer moves, so an agent that changes the shape edits ARCHITECTURE.md in the same change. "Where does new content go" now has one more branch: shape → ARCHITECTURE, call → DECISIONS, convention → STYLE. Kept short and code-referenced on purpose (174 lines at writing); if it grows past ~200 or starts arguing with itself, that is a sign content belongs in DECISIONS. It also has to stay honest about unbuilt decisions — the §real-vs-decided table is the part that stops the map reading as a spec the code failed to meet.
+## D-015: `ARCHITECTURE.md` is the code map, DECISIONS stays the log
+- **2026-11-17 · Accepted · extends D-011**
+- **Decision:** ARCHITECTURE holds the shape (layers, dependency direction, tick ownership, the Unity boundary, the checklist) and no rationale; DECISIONS holds rationale only, and wins over ARCHITECTURE.
+- **Why:** Append-only is right for decisions and wrong for a picture; a reader assembling the shape from five entries assembles it differently each time. The boundary is explicit so neither file sprawls.
 
 ## D-016: Player pushes go through the domain; contact, not the timer, absorbs momentum
-- **Date:** 2026-11-19
-- **Status:** Accepted (closes the open coupling question D-008 left for pillar 3)
-- **Context:** D-008 explicitly left pillar 3's coupling open ("how to adequately bind the player's own pushback? It's an external system"). The first implementation put the active-force list, the force tick, the curve evaluation, gravity and vertical velocity inside `PlayerMotor` — a shell, which D-012 forbids — and the tree did not compile (B-002). The symptom drove the design: a 2-second hydrant preset expired while the player was still flying and velocity dropped to zero in mid-air. That is the feel of no inertia, and it is structural: `CharacterController.Move` teleports by the vector handed to it and keeps nothing (G-012), so momentum must be ours to own.
-- **Decision:** The domain owns velocity. `PlayerMotion` (Domain) holds three summed channels — `ControlVelocity` (input-driven, never touched by a push), `PushVelocity` (push momentum), `VerticalVelocity` (gravity + the vertical part of a launch) — plus the active push list (capacity 8, index swap-remove). Every push enters through **`Player.ReceivePush(PushPresetData, Quaternion worldOrientation)`**, and the direction comes from the **source's** rotation, never the player's facing. A preset is `Type / Kind / Applies / Force / Curve / Duration`; `Kind` is `Impulse` (Force in N·s, fires once) or `Sustained` (Force in newtons, acceleration per tick for `Duration`). **The force's `Duration` ends the *adding*, never the velocity**: momentum persists in flight, decays by authored `AirDrag`, saturates at authored `MaxPushSpeed`, and is absorbed by **contact** — grounded zeroes vertical and push-Y, side contact zeroes the pushed X/Z and leaves `ControlVelocity` intact so the player can still walk away. `PlayerMotor` is a thin shell: `Move(Velocity * dt)` + report `CollisionFlags` (Sides) and `isGrounded` back into the domain.
-- **Why:** A rigid body never stops when a force's timer ends; contact is what absorbs momentum, so making the timer authoritative is precisely what produced the mid-air stop. Rejected: the report-only variant (domain reports input/jump/push list, the shell integrates it) — it puts the motion rules in an adapter, the exact violation being removed, and it is *more* work for the shell, not less; a single velocity vector — the input steering step would eat a launch back toward the input intent, so the three channels make "pushes add, never replace" a structural fact instead of a comment. Replace-per-`Type` bounds the entry count (a 0.1 s spray interval leaves **one** entry, not 30); authored `MaxPushSpeed` bounds the velocity (drag alone gives an equilibrium far too high to feel right); `max(Duration, 0.001f)` and a guarded inverse mass are the no-NaN guards. List overflow drops the oldest entry and logs, never grows silently.
-- **Consequences:** Every future push source (spray, falling debris, hydrant burst) uses the same one method, so the pattern is: a system that wants to shove the player calls the shell, the shell forwards, the domain decides what velocity does. Routing stays as-is (`HydrantPush → PlayerMotor.ApplyForce → Player.ReceivePush`); a domain-side push-source registry is a later change. Contact reporting **must** include Sides, not just `isGrounded` (G-012). `PlayerMotor`'s own `Update()` is deleted, restoring D-013's single-`Update` rule, and it registers in `GamePlaySession` **after** the player, so input → player → motor is one list in code. All feel is tunable in one place (GameSettings + presets). The perf budget for this system is written *before* code, per D-007.
-- *(Note 2026-11-19, same session: this entry named one decay rate, `AirDrag`, and nothing for the ground. A push in any direction but straight up left the player sliding for seconds. Filled by D-020 — two authored rates, `GroundDrag` grounded and `AirDrag` airborne.)*
+- **2026-11-19 · Accepted · decay filled by D-020 · channels refined by D-027 · DTO surface by D-028**
+- **Decision:** The domain owns velocity. Every push enters through `Player.ReceivePush(preset, sourceDirection)`, the direction from the **source**, never the player's facing. `Duration` ends the **adding**, never the velocity: momentum persists, decays by the authored rate, saturates at
+  `MaxPushSpeed`, is absorbed by contact. Replace-per-`Type` keeps one entry, so a 0.1 s spray interval leaves one entry, not 30.
+- **Why:** A rigid body never stops when a force's timer ends, and `CharacterController.Move` stores nothing — momentum must be ours. Rejected: the report-only variant (motion rules in an adapter, the exact violation being removed) and a single velocity vector (steering eats a launch back toward
+  input intent).
 
 ## D-017: Jump is one of the pushes
-- **Date:** 2026-11-19
-- **Status:** Accepted (supersedes `PlayerJumpForce` and `PlayerMotorConfig` as jump authoring)
-- **Context:** Jump existed three times at once: `GameSettings.PlayerJumpForce`, `PlayerMotorConfig.JumpCurve/JumpDuration`, and an empty `JumpPreset` slot on the prefab, with the implementation in the shell. If jump could not be expressed through the push entry point, the push model would be wrong.
-- **Decision:** Jump is a `PushPresetData` (`Type: PlayerJump`, `Kind: Impulse`, `Applies: GroundedOnly`) authored on `GameSettings`. `Player` applies it to itself through the same `ReceivePush` path the hydrant and the spray use, gated on grounded, one press per contact, re-armed on the next contact.
-- **Why:** One mechanism for all three (jump, hydrant launch, spray shove) means one place to tune, one place to test, and one place a future bug can live. It can be expressed through the same entry point, so there is no reason to keep a second one.
-- **Consequences:** `PlayerJumpForce` and `PlayerMotorConfig` are deleted; the prefab's orphaned `JumpPreset` block is housekeeping. The jump lives in the Y component of `PushVelocity`, so a grounded tick zeroes it on landing — which is the same rule as any other push, not a jump special case. Jump tests assert launch magnitude as `Force / Mass`, i.e. authored, not coded.
-- *(Note 2026-11-19, same session: "`Player` applies it to itself" — the preset, the entry point and the one-press-per-contact rule all still hold, but the gate's home moved into `PlayerMotion` and the flag out of `Player`. See D-021.)*
+- **2026-11-19 · Accepted · gate's home moved by D-021 · press mechanism replaced by D-039**
+- **Decision:** Jump is a `PushPresetData` applied through the same `ReceivePush` path as hydrant and spray.
+- **Why:** One mechanism for jump, hydrant and spray shove = one place to tune, test, and find the bug. If jump cannot be expressed through the push entry point, the push model is wrong. Tests assert launch as `Force / Mass` — authored, not coded.
 
 ## D-018: No fixed step for now
-- **Date:** 2026-11-19
-- **Status:** Accepted (supersedes the `IFixedUpdatable` clause of D-013)
-- **Context:** D-013 planned a fixed-step host for physics impulses and queries, on the reasoning that impulse-driven pillars "cannot be driven off a variable frame step". For this phase the user's call was to use the general `IUpdatable` and forget the fixed step.
-- **Decision:** Integration is dt-driven on the single `GameUpdater` tick; `IFixedUpdatable` and its host are **not built**. Frame-rate independence is asserted by test T8 at `dt = 1/60`, `1/30`, `1/120`, with final velocity within 5%.
-- **Why:** A fixed-step host is a second loop, a second ordering contract, and a second place to measure, for a cost the push model does not need: its only dt-sensitivity is integration error, and the tests bound it. `PlayerMotion`'s steps are all `x += rate * dt` or `x *= 1 - k * dt`, which is stable across the frame rates the game runs at.
-- **Consequences:** The fixed-step TODO entry is struck, and D-013's "physics impulses go on the fixed step" clause is dead. If a future system needs deterministic stepping (fire-spread schedule, rigidbody queries), it re-opens as a new decision, not a resurrection of this clause. The frame-rate-independence tests become permanent: a rewrite that only works at one tick rate fails them.
+- **2026-11-19 · Accepted · supersedes the `IFixedUpdatable` clause of D-013**
+- **Decision:** Integration is dt-driven on the single `GameUpdater` tick, the fixed-step host is not built; frame-rate independence is asserted at `dt = 1/60, 1/30, 1/120` within 5%, permanently.
+- **Why:** A fixed-step host is a second loop, ordering contract and measurement place for a cost the push model does not need — its only dt-sensitivity is integration error, and the tests bound it. Re-opens only as a new decision.
 
 ## D-019: Web builds deferred to a dedicated pass
-- **Date:** 2026-11-19
-- **Status:** Accepted (suspends D-007's "a web build runs every session" clause; D-007's budget-before-code rule and the no-haptics rule stay in force)
-- **Context:** The construction phase needs fast iteration, and a WebGL build costs minutes of the user's machine. Any web measurement today is untrustworthy: B-001 means the web target has no render pipeline bound at all, so a web build measures a broken configuration.
-- **Decision:** Systems are built and verified in the editor — headless compile gate, PlayMode tests, editor feel checks — and **no web build is made in this change**. Per-system perf budgets are still written *before* code, and nothing is re-scoped. The web measurement happens in one dedicated pass, after B-001 is fixed.
-- **Why:** Building against a pipeline that is not assigned measures nothing, and paying for that measurement every session buys no information. The deferral is a known price, not an accident: the systems in scope (fire, particles, impulses) are exactly the ones D-007 says must be judged on web.
-- **Consequences:** The honest status line for any commit in this phase is **editor-verified, web-unverified**, and it must be written as such in the commit body. The risk we accept, stated plainly: a system tuned in the editor may measure badly on web, and we choose to find that out in one pass. B-001 remains the blocker for that pass, and D-007's "works in the editor is not done" stays true as a *final* standard.
+- **2026-11-19 · Accepted · suspends D-007's per-session web build; budgets-before-code stands**
+- **Decision:** Systems are built and verified in the editor; the web measurement happens in one dedicated pass after B-001 is fixed. The honest status line for any commit in this phase is **editor-verified, web-unverified**, written in the commit body.
+- **Why:** A web build today measures a target with no render pipeline bound (B-001), so it buys no information every session. D-007 stays true as the *final* standard.
 
-## D-020: The push channel has two authored decay rates, one per contact state
-- **Date:** 2026-11-19
-- **Status:** Accepted (fills a gap D-016 left open: it named `AirDrag`, and nothing for the ground)
-- **Context:** The launch and the jump read correctly in the editor, but a push in any direction except straight up leaves the player **sliding for seconds** — "the ground feels like ice". The cause is a rule gap, not a bad number: the push channel decayed at `AirDrag` (0.5/s) whether or not the player was grounded, so a 10 m/s launch still carried 2.5 m/s two seconds later, while the player's own control channel stops at `GroundFriction` (12/s). One rate for both states is what produced the slide.
-- **Decision:** The push channel decays at **authored `GroundDrag` while grounded, `AirDrag` while airborne**, and ground friction acts **in the ground plane only** (`PushVelocity.x/z`) — never on its vertical component, which contact and gravity already own. Authored `GroundDrag` = 4 (units/s): a 10 m/s shove reaches walking speed in about an eighth of a second and comes to rest inside a second. Tuning range is stated with the field: ~1 for a long skid, past 8 for a hard stop.
-- **Why:** Ground contact is what absorbs momentum (G-012); the question was only *how fast*, and that is authored, not derived. It is authored separately from `GroundFriction` because the two channels must be tuned independently — share the rate and a snappy stop-press drags the shove to a halt too, which deletes the "a shove outlives a stop" feel. Not zeroing the shove on landing: a hard switch removes the skid entirely, so the feel stops being tunable and a landing and a wall become indistinguishable. Not anisotropic (along-slide kept, across-slide absorbed) as it would be on a real capsule: it needs a contact normal, which `CharacterController` does not give the shell, so it would need a raycast — logged as the next refinement, not this one. Restricting ground friction to the ground plane is what keeps a jump fired on that tick from being eaten by the friction meant to absorb the *slide*.
-- **Consequences:** A new authored field on `IGameSettings`/`GameSettings` and in `Game Settings.asset`, and in `StubSettings`. New test T13 (`GroundContact_AbsorbsAShove_TheAirDoesNot`) asserts the asymmetry with analytic expectations, and it fails on a one-rate model — it is the gate for this rule. Tests that want exact push-channel math now set `GroundDrag = 0f` explicitly next to `AirDrag = 0f`; the stub default mirrors the authored 4, so forgetting is a test of the real rule, not a free pass. Re-opening for anisotropic friction is a new decision that also changes what the shell reports (a normal, not a `Sides` bool).
+## D-020: Two decay rates, one per contact state
+- **2026-11-19 · Accepted · the ground half superseded by D-038 · the air rate stands**
+- **Decision:** The push channel decays at `AirDrag` airborne; ground friction acts in the ground plane only, never on the vertical, which contact and gravity own.
+- **Why:** Ground contact is what absorbs momentum (G-012), the question was only *how fast* — authored, not derived. Not zeroing the shove on landing: a hard switch removes the skid, the feel stops being tunable, and a landing and a wall become indistinguishable.
 
-## D-021: The jump gate lives in `PlayerMotion`; `Player` is composition and forwarding only
-- **Date:** 2026-11-19
-- **Status:** Accepted (supersedes the home of the jump gate in D-017; the preset, the entry point and the grounded/one-per-contact rule are unchanged)
-- **Context:** `Player` held `TryJump()` and `_jumpFiredThisContact`. The user's objection: `Player` is a wrapper on the domain logic — it should hold no rules — and jump is a feature of movement, so the movement class should manage it. Both halves of that objection are right, and the second one cannot be taken literally: `PlayerMotion` depends on `PlayerMovement` (it reads `DesiredVelocity`), so a jump applied *by* `PlayerMovement` would need a reference back and the composition would be a construction cycle.
-- **Decision:** The jump **rule** (may a request become a launch this tick, one per contact, re-armed on the next) lives in `PlayerMotion`, next to the only two facts it needs — contact and the push channel — and it fires the authored `_settings.JumpPreset` through the same `ApplyPush` path. The jump **request** is exposed by `PlayerMovement` (`IsJumpRequested`, reading `IPlayerInput.IsJumping`) — request in, rule out. `Player` keeps exactly three things: the composition, `Velocity` for the shell, and the two forwards (`ReceivePush`, `ReportContact`). `TryJump()` and the flag are deleted from it.
-- **Why:** One owner per rule; a rule split across two classes with a one-tick handshake between them is a bug magnet, and the cycle rules the naive reading out. `PlayerMotion` is a domain class that already reads `PlayerMovement`, so the gate costs no new dependency, no new field on `Player`, and no setter-injected wiring (which the layering forbids: wiring once in a constructor is the rule). A per-feature `UseCases` class was considered for this and for the other push sources and is not taken now: a jump use case would own a three-condition gate, which is smaller than the class that hosts it; the same shape is a clear win for the extinguisher spray, where the start condition is a raycast, the direction is the aim, and the interval is a re-call — that gets its own entry when the spray exists.
-- **Consequences:** `Player.UpdateLogic` is three calls; the jump fires inside `PlayerMotion`'s step, after `ApplyContact()` and before gravity, so a launch on the tick it lands survives the ground it left (the ordering contract D-013 already states). The gate now uses `PlayerMotion`'s own `IsGrounded` (the report Unity gave) instead of `PlayerMovement`'s copy, which are fed by the same call — so there is one fewer place for grounded to disagree. `Player` no longer needs the `IPlayerInput`/`IGameSettings` references at all, only the parameters. `PlayerJumpTests` drive `_input.IsJumping` and are unaffected: they assert behaviour through `Player`, never the gate. The jump preset's `Applies: GroundedOnly` is now redundant with this gate — that axis is a separate open question (TODO), and if it is deleted this entry's decision does not change.
+## D-021: The jump gate lives in `PlayerMotion`, `Player` is composition and forwarding only
+- **2026-11-19 · Accepted · supersedes the home of D-017's gate**
+- **Decision:** The jump **rule** lives in `PlayerMotion`, next to the two facts it needs (contact, the push channel); the **request** is exposed by `PlayerMovement`; `Player` keeps the composition, `Velocity`, the two forwards.
+- **Why:** One owner per rule; a rule split across two classes with a one-tick handshake is a bug magnet, and `PlayerMotion` already reads `PlayerMovement`, so the gate costs no new dependency. A `UseCases` source class is taken **where a source has scenario logic** (aim, hit test, interval), not
+  for a gate.
 
-## D-022: Unity CLI is the editor-automation interface; the MCP bridge stays unwired
-- **Date:** 2026-11-20
-- **Status:** Accepted
-- **Context:** Verified the toolchain end to end. `unity.exe` (Unity CLI, v1.0.1) is installed at
-  `%LOCALAPPDATA%\Unity\bin`; `com.unity.pipeline` 1.0.0 is already in `Packages/manifest.json`, and
-  `unity status` reports our running editor on port 7800 with `state: ready` — so a live editor
-  answers 196 Pipeline commands (`script recompile`, `test run`, `console get`, `scene get_hierarchy`,
-  `gameobject find`, `build run`, `diagnostics profiler_record`, `runtime simulate_key`). Unity's own
-  docs (`Documentation~/snippets/mcp-deprecation-notice.md` in AI Assistant 2.21.0-pre.2) say the MCP
-  server is deprecated and the CLI replaces it. The bridge does work — 54 tools + 1 prompt over the
-  named pipe `\\.\pipe\unity-mcp-<hash>-<pid>`, relay `~/.unity/relay/relay_win.exe` — but see G-013
-  for how fragile it is to drive by hand, and every MCP tool is covered by `unity cmd`.
-- **Decision:** The Unity CLI is **the** way an agent drives this editor: `unity status` first, then
-  `unity cmd`, `unity test`, `unity build`, `unity run`, `unity recompile`. The MCP bridge is **not**
-  registered in any client's MCP config. Skills come from the CLI binary: 37 Unity skills installed
-  project-local (`.opencode/skills/`, `unity skill install opencode --local`) and user-global for
-  Claude Code (`~/.claude/skills/`). The G-004 `.claude/skills` junction to `Assets/Feel/Skills` is
-  **not** created — Feel's `SKILL.md` files are read directly, on demand.
-- **Why:** Registering 54 MCP tools on a deprecated path spends context to duplicate what `unity cmd`
-  already does, and a stdio MCP proxy that shuts down at stdin EOF (G-013) is a bad dependency to
-  build on. The CLI talks to the *warm* editor, so the compile gate stops paying batch-mode cold-start
-  cost, and it reaches the Player runtime too (`--runtime`), which a batch run never does. Installing
-  skills project-local keeps them pinned to this repo's Unity version and lets `unity skill sync`
-  re-render them against the CLI binary; the Claude Code copy is user-global so it covers every project
-  on this machine. OpenCode discovers both sources; Claude Code needed a global install to see them.
-- **Consequences:** `CLAUDE.md` §"Unity toolchain" is the pointer agents read; the compile gate for
-  B-002 is `unity cmd script recompile`, not the batch-mode invocation. After any `unity self-update`,
-  `unity skill sync` re-renders the installed skills — a stale skill copy is a known failure mode.
-  Nothing may add Unity MCP to `mcp.servers` without a new decision. Whether `.opencode/skills/` is
-  committed or gitignored is **open** (TODO). The Feel-skills path is unchanged in substance: agents
-  read `Assets/Feel/Skills/<id>/SKILL.md` before Feel work (G-004 stays Open with a revised rule).
+## D-022: Unity CLI is the editor-automation interface, the MCP bridge stays unwired
+- **2026-11-20 · Accepted · the skills-install clause superseded by D-023, D-025**
+- **Decision:** The Unity CLI against the running editor is **the** way an agent drives this project (`unity status` first, then `unity cmd` / `unity test` / `unity build`); the MCP bridge is in no client.
+- **Why:** 54 MCP tools on a path Unity deprecated duplicate what `unity cmd` does, and the relay is fragile by hand (G-013). The CLI reaches the warm editor, so the compile gate stops paying cold start, and reaches the Player runtime too.
 
-## D-023: CLI-only toolchain, exactly 2 Unity skills, agent speaks Russian
-- **Date:** 2026-11-20
-- **Status:** Accepted (supersedes the skills-install clause of D-022; D-022's MCP-unwired clause stands)
-- **Context:** 37 Unity skills were installed project-local + user-global earlier the same day, and the
-  user's review was that the list is too complex. Skills are manuals for the agent, not runtime
-  capability: the CLI's 196 commands do the work, and the MCP bridge (54 tools) is deprecated by Unity.
-  The CLI was proven able to drive the scene end to end with no MCP: `gameobject create` →
-  `set_transform` → `component add` → `component get_properties` → `capture scene_view/game_view`,
-  with the change written into `FnB_Gameplay.unity` (the `House Blockade` test wall).
-- **Decision:** The Unity CLI is the toolchain and the MCP bridge stays unwired (D-022). **Exactly two
-  skill manuals** remain: `unity-cli` and `unity-pipeline`, project-local `.opencode/skills/` plus the
-  Claude Code global copy; the other 35 were deleted from both locations. There is no
-  `unity skill uninstall`, so deleting folders is the undo — and `unity skill sync` / `unity skill
-  refresh` are banned, because they re-render and re-create the whole 36-skill tree (G-015).
-  **The agent answers in Russian**, short and plain, 5–10 lines, no wide tables, no option menus
-  (CLAUDE.md §Rules).
-- **Why:** Adverting 36 manuals spends context in every session, and 35 of them describe systems
-  outside the four locked pillars (D-008). The 2 that stay are the ones needed to drive the CLI
-  correctly. Deleting folders, not disabling, keeps the repo clean and makes the state visible on disk.
-- **Consequences:** Getting a niche skill back for one task =
-  `unity skill install opencode --local --skill <name>`, then delete it again. The CLI's tracking list
-  (`unity skills`) stays **stale** after manual deletes — trust the folders on disk, not the list.
-  Whether the 2 remaining skill dirs (754 KB, generated by the CLI binary) are committed or gitignored
-  is **open** (TODO). After `unity self-update`, do **not** run `sync`: skills stay as they are.
+## D-023: CLI-only toolchain, the agent speaks Russian
+- **2026-11-20 · Accepted · the "exactly 2 skills" clause superseded by D-025; CLI-first and Russian stand**
+- **Decision:** The CLI is the toolchain, skill manuals are deleted rather than maintained; the agent answers in Russian, 5–10 lines, no wide tables, no option menus.
+- **Why:** Adverting 36 manuals spends context in every session and 35 describe systems outside the locked pillars (D-008).
 
-## D-026: Tests — on code, on Domain/UseCases/invariants, after the user approves the mechanic
-- **Date:** 2026-11-20
-- **Status:** Accepted (changes the test process in CLAUDE.md §Rules and STYLE.md §Tests; D-016's test
-  list stays, its tests are on borrowed time until the feel pass)
-- **Context:** The 19 tests are `[Test]` plain NUnit on plain C# classes with stub ports, but the test
-  asmdef is platform-agnostic, so Unity runs them as **PlayMode** — paying a scene load and driving
-  Play Mode for code that touches no Unity, in a scene that has no `Player` (B-004), so the run proves
-  nothing about gameplay. The user's review: writing tests before a mechanic is approved means writing
-  them 5 times, because the mechanic gets edited and bugs get fixed; a test on an adapter asserts
-  Unity, not our rules; and re-running a passing test 5 times buys no information.
-- **Decision:**
-  1. **Layers tested:** Domain, UseCases, and **invariants** (always-true properties of domain state).
-     **Never Adapters** — shells have no rules.
-  2. **When:** tests are written **after** the user has played the mechanic and approved it.
-  3. **Where:** the suite runs **on code** through `unity cmd test run --mode editor`;
-     `FlameNBlame.Tests.asmdef` becomes editor-only (`includePlatforms: ["Editor"]`), which is what
-     makes it EditMode. Play Mode is for feel checks with `capture game_view`, not for the suite.
-  4. **The 5-run rule is removed:** a test runs once, under 90 s; the gate is re-run whenever the code
-     changes.
-- **Why:** Feel is judged by the user's eyes, so a test cannot say a launch feels right — asserting an
-  unapproved mechanic is writing a specification the user is about to change. Adapters are thin
-  forwarders, so a test there costs the same as a test of `CharacterController`. EditMode removes the
-  scene from the measurement: the same 19 assertions, no scene load, no Play Mode. One run is enough
-  because NUnit is deterministic and the gate is not a one-off — every edit re-runs it.
-- **Consequences:** The CLI gate for tests is `unity cmd test run --mode editor` (synchronous, no
-  `--async-tests`, results in the run output). The existing suite needs no code change, only the asmdef
-  platform. The push-model tests are written for a mechanic that is **not** user-approved yet (the 5
-  editor feel checks are open), so expect them to be edited during the feel pass; the permanent
-  assertions are frame-rate independence (T8) and the no-per-tick-allocation budget (T12).
+## D-024: Docs re-scoped — one job per file, bugs live in TODO
+- **2026-11-20 · Accepted · supersedes the routing rules of D-011 and D-015; routing re-cut 2026-11-25**
+- **Decision:** One responsibility per file; `BUGS.md` deleted, its rows into TODO as `- [ ] B-xxx`, done when the test passes; state moved out of `CLAUDE.md` into DECISIONS §Current structure.
+- **Why:** A doc mixing state with behaviour is read every session and spends context on facts that change daily; a doc retelling decisions makes two files argue. The user does not want to track the docs himself, so each file answers exactly one question.
 
 ## D-025: Zero Unity skills — the CLI documents itself
-- **Date:** 2026-11-20
-- **Status:** Accepted (supersedes the "exactly 2 skills" clause of D-023; D-023's MCP-unwired clause,
-  the CLI-first clause and the Russian-language clause stand)
-- **Context:** After the D-023 prune, 2 manuals stayed: `unity-cli` + `unity-pipeline`, 754 KB,
-  untracked, in `.opencode/skills/` and in the user's global `~/.claude/skills/`. Reviewing what the
-  agent actually needs: `unity cmd` prints every command **with its description**, `unity cmd --query
-  <term>` searches the list, `unity cmd <group> <verb> --help` prints the accepted parameters, and the
-  non-obvious facts (JSON-array vectors, `--hierarchy-path`, the compile/test gates, `confirm=true` for
-  destructive commands) are recorded in CLAUDE.md §Commands and G-014/G-015.
-- **Decision:** **No Unity skills in the repo and none in the global skills folder**: `unity-cli` and
-  `unity-pipeline` deleted from both. `gepeto` + `pinokio` (the user's non-Unity global skills) stay.
-  **Feel's 8 skill folders stay in `Assets/Feel/Skills/` where they were** — vendor folder, unadvertised,
-  read directly (G-004).
-- **Why:** A manual that duplicates the CLI's own help output spends context in every session and goes
-  stale against the CLI binary; a folder of generated markdown in the repo has to be committed,
-  gitignored, or deleted, and it is regenerated by commands we are not allowed to run. Self-documenting
-  tools beat manuals.
-- **Consequences:** An agent driving Unity reads CLAUDE.md §Commands and asks the CLI (`--query`,
-  `--help`). `unity skill install` is now a **per-task exception**, never a habit: install one niche
-  skill, use it, delete its folder. Nothing in the repo is generated by the Unity CLI, so `.opencode/`
-  is empty and the git-tracking question is closed. The tracking store (`unity skills`) lists 36 entries
-  that do not exist on disk — trust the folders.
+- **2026-11-20 · Accepted · supersedes D-023's "exactly 2 skills"**
+- **Decision:** No Unity skills in the repo or in the global folder; Feel's 8 folders stay in the vendor folder, unadvertised, read directly (G-004). `unity skill install` is a per-task exception, never a habit.
+- **Why:** `unity cmd` prints every command with its description, `--query` searches, `--help` prints parameters, and the non-obvious facts are already in CLAUDE.md §Commands and G-014/G-015. A manual duplicating help output goes stale against the CLI binary.
 
-## D-024: Docs re-scoped — one job per file, BUGS.md merged into TODO.md
-- **Date:** 2026-11-20
-- **Status:** Accepted (supersedes the routing rules of D-011 and D-015; the entries they recorded stand)
-- **Context:** The doc set had drifted from what it is for. `CLAUDE.md` (306 lines) carried scene
-  archaeology, MCP pipe internals and a tool inventory — state, not behaviour; `TODO.md` (241 lines)
-  had duplicate lines, stale "not run yet" items and paragraph-long narratives; `ARCHITECTURE.md`'s
-  mutable section retold the rationale of D-016/D-020, which DECISIONS already owns; `BUGS.md` did the
-  same job as TODO. The user asked for exactly one responsibility per file, and said he does not want
-  to keep track of the docs himself.
-- **Decision:** The split, one line each:
-  - `CLAUDE.md` — agent behaviour only: rules, commands, toolchain, vendor boundaries, doc routing.
-    Thin (~110 lines). No state, no environment inventory.
-  - `TODO.md` — the work list, **including bugs** (the `B-` ids stay, as `- [ ] B-001` lines with
-    repro + status). Done / Now / Phases / Housekeeping / Done sections.
-  - `ARCHITECTURE.md` — how to build: the READ-ONLY rules, the layer map, who owns the tick, the
-    checklist for a new system. No rationale, no history.
-  - `DECISIONS.md` — **§Current structure** (folders, namespaces, assemblies, who talks to what, scene
-    contents) kept current, plus the append-only decision log with the *why*.
-  - `GOTCHAS.md` — traps we fell into, each ≤ 5 lines: Status / What / Rule.
-  - `STYLE.md` — conventions. `docs/README.md` — the index.
-  **BUGS.md is deleted**; its three rows move into TODO.md's bug section. Editing existing
-  DECISIONS/GOTCHAS entries is allowed **only** to compress verbosity, never to change an ID, a status
-  or a Rule; new content is always a new entry.
-- **Why:** A doc that mixes state with behaviour is read every session (CLAUDE.md) and spends context
-  on facts that change daily; a doc that retells decisions makes two files argue. The user's stated
-  need is to not have to know what is in each file — so each file answers exactly one question, and
-  the answer to "what's the state" is in one place (DECISIONS §Current structure) rather than three.
-- **Consequences:** `CLAUDE.md`'s "Current state of the code" section is gone: state moves to
-  DECISIONS. Bugs are tracked by the same checklist mechanism as tasks, so a bug is done when its test
-  passes, not when it is written. `README.md`, `STYLE.md §Docs` and `CLAUDE.md §Docs` routing lines are
-  rewritten to match. `docs/` stays untracked (TODO) - the doc cleanup is one commit.
+## D-026: Tests — on code, on Domain/UseCases/invariants, after the mechanic is approved
+- **2026-11-20 · Accepted · rewrites the test process in CLAUDE.md and STYLE.md**
+- **Decision:** Suite runs **EditMode on code** (`unity cmd test run --mode editor`), the test asmdef editor-only. Tested: Domain, UseCases, **invariants**; **never Adapters**. Written **after** the user has played and approved the mechanic. A test runs once, under 90 s.
+- **Why:** Feel is judged by the user's eyes, so a test cannot say a launch feels right; asserting an unapproved mechanic is writing a specification the user is about to change. A test on a shell asserts Unity, Play Mode pays a scene load for code that touches no Unity, re-running buys nothing.
 
 ## D-027: Simulation split — horizontal shove channel + vertical launch channel, contact by normal
-- **Date:** 2026-11-20
-- **Status:** Accepted (refines D-016's channel model and D-020's absorption rules; the step order of D-016
-  stands; supersedes the "`CollisionFlags.Sides` zeroes the pushed axes" clause; D-021's jump gate stays
-  in `PlayerMotion` for now — moving it to a UseCase is the second half of this decision, not done yet)
-- **Context:** An audit of the simulation found two structural defects and one test-design defect.
-  **Vertical launches lived in the push channel**, which the ground zeroes every grounded tick, so a
-  *timed* launch (a 2 s hydrant curve, a 0.5 s jump curve) accumulates nothing — the ground eats it tick
-  by tick; and the B-003 test was unpassable by construction: `meanLate - meanEarly < 0.1` compares the
-  first second of an exponential ramp (τ = 1/AirDrag = 2 s) against the asymptote, which always differs,
-  while the cap (12) sat above the force/drag equilibrium (8), so the clamp that **was** implemented was
-  never exercised. **`CollisionFlags.Sides` carries no axis**, so wall absorption zeroed both X and Z:
-  sliding along a wall stopped the player dead.
-- **Decision:**
-  1. The push channel is **horizontal only**. All vertical momentum — gravity, terminal velocity, and the
-     vertical part of every launch — lives in the vertical channel. A push's delta is split on entry.
-  2. A **launch state**: any upward delta arms `IsLaunched`; the ground may reset vertical momentum only
-     when grounded **and not launched**; the landing that absorbs a launch ends it. This is what makes a
-     timed force physically meaningful.
-  3. The shell reports **the contact normal** (`ReportContact(grounded, Vector3 normal)`), taken from
-     Unity's `OnControllerColliderHit`, which `Move` fires synchronously inside itself. A wall absorbs the
-     push component **along the normal**; the component parallel to the surface is kept. A normal with
-     y < 0.5 is a wall, so a walkable slope is not treated as one.
-  4. **Test expectations become analytic**: convergence is asserted as "the late window sits on the
-     force/drag equilibrium, the series is monotone, the plateau is reached inside 3τ", and saturation is
-     asserted by a second scenario where the equilibrium is **above** the cap.
-- **Why:** A model where a timer, a channel and the ground all fight for the same vector cannot express
-  "shove me for 2 seconds" — the accumulation is the point, and the ground cancels it. `Sides` is a
-  boolean, so any rule built on it is guesswork about which axis stopped you. An absolute convergence
-  threshold is unpassable at any τ: exponential ramps approach asymptotically by definition, so the
-  honest assertion is about the asymptote, not about a difference of two windows.
-- **Consequences:** The suite is **20 tests, all passing** (`unity cmd test run --mode editor`, 0.15 s).
-  The jump tests read `VerticalVelocity`, not `PushVelocity.y`, and run with gravity off so the launch is
-  a clean `Force/Mass`. `PlayerMotor` gains `OnControllerColliderHit` (a Unity callback on the shell, not
-  a physics query, so the Domain boundary holds). B-003 is `Verified`. The authoring surface for
-  Impulse presets (`Duration`, curve past t=0, `Applies`, `FiredImpulse`) stays in the code, dead, until
-  the feel pass - the second half of this decision (`PushDirector` + the four UseCases, the jump gate
-  leaving `PlayerMotion`) is the next task.
+- **2026-11-20 · Accepted · launch-state rule refined by D-030 · the UseCase split is the unbuilt half**
+- **Decision:** The push channel is **horizontal only**; all vertical momentum (gravity, terminal velocity, the vertical part of every launch) lives in its own channel, so a timed force can accumulate. The shell reports the **contact normal**; a wall absorbs **along the normal**, keeps the parallel
+  component; `y < 0.5` is a wall. Test expectations become analytic: the late window on the force/drag equilibrium, the series monotone, the plateau inside 3τ, plus a scenario with the equilibrium **above** the cap.
+- **Why:** A model where a timer, a channel and the ground fight for the same vector cannot express "shove me for 2 seconds". `CollisionFlags.Sides` is a boolean with no axis, so any rule built on it is guesswork; an absolute convergence threshold is unpassable at any τ.
 
 ## D-028: Push DTO split by force shape, direction as a Vector3, presets in one asset
-- **Date:** 2026-11-20
-- **Status:** Accepted (deletes the push DTO surface of D-016/D-020: `PushPresetData`, `PushKind`,
-  `PushApplication`, `Vector3CurveData`; supersedes D-027's stored launch state; the step order, the
-  channels, the contact normal, the analytic tests and D-021's jump gate in `PlayerMotion` all stand)
-- **Context:** The hydrant launched the player in a direction nobody had authored. Two independent causes:
-  **the API takes a Quaternion** (`ApplyForce(preset, _pushDirection.rotation)`) and the envelope
-  multiplies it, so with the authored empty X/Y/Z curves the envelope read as `(1,1,1)` and the launch ran
-  along the **diagonal** of the nozzle's space; and the authored preset was `Kind = Impulse`, whose
-  `Duration` and curve past t=0 are ignored, so the 2 s decay the author typed had no effect. Two Inspector
-  fields did nothing at all: `Applies` (dead since D-021's jump gate) and `ActivePush.FiredImpulse` (never
-  set). The user's UseCase examples (hydrant 1000 N decaying to 0 over 1 s, jump plateau 0.2 s then fade,
-  kick/spray as plain impulses) need per-shape parameter sets, and `Duration` is meaningless for an impulse.
-- **Decision:**
-  1. **Two DTOs, one per force shape:** `ImpulsePresetData {Type, Force (N·s)}` — no Duration, no curve,
-     because an impulse has nothing to time; `SustainedPresetData {Type, Force (N), Curve, Duration}`.
-     `PushKind` and `PushApplication` are deleted: the DTO's shape **is** the kind.
-  2. **Direction is a Vector3 handed over by the source** (`PushDirection.forward`), never a Quaternion.
-     **The envelope is one scalar `AnimationCurve`** (0..1 across the duration), never per-axis.
-     `Vector3CurveData` is deleted.
-  3. **Two entry points:** `PlayerMotion.ApplyImpulse(preset, direction)` and
-     `ApplySustained(preset, direction)`, forwarded by the `Player.ReceivePush` and `PlayerMotor.ApplyForce`
-     overloads. The direction is normalized on entry.
-  4. **All presets in one authored asset:** `Assets/_Core/Push Presets.asset` (`PushPresets :
-     ScriptableObject`), keyed by `PushType`, read through the `IPushPresets` port at the source's **firing**
-     moment, never per tick. `IGameSettings.JumpPreset` is gone; the jump preset lives in the asset like
-     every other push.
-  5. **Vertical absorption is directional, not a state:** the ground sets vertical to `GroundedGravity`
-     only when vertical is **downward**. A launch that rises is never eaten by the ground, so a timed force
-     accumulates; a force too weak to overcome gravity is absorbed, which is the physically honest case.
-     `IsLaunched => VerticalVelocity > 0` — a derived fact, no stored flag.
-- **Why:** A rotation times a curve is a direction the author cannot see, and a per-axis "flat" envelope is
-  a diagonal. Fields that mean nothing for their kind invite authoring numbers that do nothing — the hydrant
-  preset had a decay curve, a duration and a `GroundedOnly` flag, none of which an Impulse reads. Presets in
-  one asset keep the shape of one launch (Force, curve, Duration) in one place, so a source stores only the
-  key and the direction, and a designer tunes without opening the scene.
-- **Consequences:** `HydrantPush` stores `PushPresets` + `PushType` + the child Transform and forwards
-  `PushDirection.forward`. DTO fields are private `[SerializeField]` with read-only properties (a field
-  cannot implement an interface property), so tests build presets through constructors. The jump is now a
-  timed preset, so a jump that lifts needs `Force > Mass * Gravity` (80 · 19.62 = 1569 N) — the feel pass
-  tunes the asset, not the code. `GroundedOnly` is gone with its rule, so test T9 is deleted. The suite is
-  `unity cmd test run --mode editor` → **19 tests, 19 passed** (T9 deleted with its rule, the jump suite is
-  7 timed-launch tests). The suite is re-signed for the two entry points and `StubPresets`. G-018 records the
-  diagonal launch, G-019 the CLI limit that a serialized curve must be authored as YAML.
+- **2026-11-20 · Accepted · point 1 superseded by D-029, restored by D-031; the rest stands**
+- **Decision:** Two DTOs, one per force shape: `ImpulsePresetData {Type, Force (N·s)}` — no Duration, no curve; `SustainedPresetData {Type, Force (N), Curve, Duration}`. Direction is a **Vector3 handed by the source**, never a Quaternion; the envelope is one scalar curve over progress.
+- **Why:** `Quaternion × AnimationCurve` with an empty curve evaluates `(1,1,1)`, so the launch ran along the nozzle's diagonal — a direction nobody authored (G-018). `Duration` is meaningless for an impulse, so fields a shape cannot read must not be authorable.
 
-## D-029: One preset list, `PushKind` as the authoring switch
-- **Date:** 2026-11-20
-- **Status:** Accepted (supersedes D-028's point 1 — the two DTOs; everything else of D-028 stands: the
-  Vector3 direction, the scalar envelope, the two entry points, the one asset, `IPushPresets`)
-- **Context:** The user's complaint about the authoring surface: "I can make a HydrantPush type version in
-  both: impulse, and sustained lists" — two lists keyed by `PushType` let one name be authored twice, with
-  nothing stopping the designer from picking the wrong list in the source. The requested shape: one list,
-  pick a name, then a type, and the Inspector shows the settings that type can read.
-- **Decision:**
-  1. **One DTO:** `PushPresetData {Type, Name, Kind, Force, Curve, Duration}`. `PushKind` returns as the
-     **authoring switch** — the designer picks Impulse or Sustained, the code never infers it.
-  2. **One list:** `PushPresets` holds a single `_presets` array keyed by `PushType` (the enum stays
-     load-bearing, 8 values), read as `IPushPresets.PresetOf(PushType)` — one lookup, one name, one preset.
-  3. **The Inspector hides what a kind cannot read:** `PushPresetDrawer`
-     (`[CustomPropertyDrawer(typeof(PushPresetData))]`, an editor-only adapter) draws Curve/Duration only
-     for Sustained and labels Force `N·s` for an Impulse, `N` for a Sustained. Field visibility is an
-     editor concern; the runtime branch lives in `TickPushes`, driven by the authored `Kind`.
-- **Why:** Two lists keyed by the same key is two sources of truth for one launch; a name chosen twice is a
-  bug that shows up as "the hydrant fired the wrong shape". Authoring the kind once, in the preset, makes
-  the runtime branch a read of an authored fact, and the drawer makes an unreadable field invisible instead
-  of a trap (G-018's lesson: fields a kind cannot read must not be authorable).
-- **Consequences:** `ImpulsePresetData` and `SustainedPresetData` are deleted; `Presets.Impulse`/
-  `Presets.Sustained` builders and `StubPresets.PresetOf` are re-signed to the single DTO. The asset is
-  re-authored as one list (`Push Presets.asset`, GUID unchanged, so the scene references survive):
-  HydrantPush Sustained 1000 N curve 1→0 dur 1 s, ExtinguisherShove Sustained 300 N flat dur 0.1 s,
-  PlayerJump Sustained 2000 N keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N·s. The
-  drawer is a shell in `InterfaceAdapters` — no domain file is editor-only.
+## D-029: One preset list, keyed by `PushType`
+- **2026-11-20 · Accepted · the single DTO and the drawer superseded by D-031, `Name` by D-032; the one list stands**
+- **Decision:** `PushPresets` holds one `_presets` array read as `IPushPresets.PresetOf(PushType)` — one lookup, one name, one preset. Field visibility is an Inspector concern, not a runtime flag.
+- **Why:** Two lists keyed by the same key are two sources of truth for one launch, with nothing stopping the designer from picking the wrong one; a flag whose job is to hide fields a shape cannot read is the crutch D-028 had already named.
 
-## D-030: The ground is a normal force; reactive facts stay reactive
-- **Date:** 2026-11-20
-- **Status:** Accepted (supersedes D-028's point 5 — the sign-only vertical rule; `IsLaunched` as a derived
-  fact, the wall rule, the channels, the step order and the analytic tests all stand)
-- **Context:** After D-029 the jump was still invisible and the hydrant pushed only X/Z. The measured facts:
-  the jump request reaches the domain (`jump=True`), the push enters the active list (`pushes=1`), and the
-  ground resets vertical to `GroundedGravity` every tick — because the launch starts from the **negative**
-  grounded rest value, so the sign rule ate the launch on its first ticks (G-020). The first fix — "no
-  absorption while any push points up" — is a crutch: force-blind, so a 300 N jet is never absorbed and the
-  body accelerates down through the ground. The user's rule on the same session: reactivity is preferred,
-  polling only for a stated reason; and a fix must be judged from the outside for crutch-ness.
-- **Decision:**
-  1. **Vertical absorption is the normal force:** the ground sets vertical to `GroundedGravity` when
-     grounded, vertical is downward, **and** the live vertical force of the Sustained pushes is
-     ≤ `Mass * Gravity`. Above weight the contact is broken and the launch accumulates; below weight the
-     contact cancels the push, which is the honest case (a weak jet cannot lift you). Impulse pushes are
-     not in the force sum — an impulse lands as velocity, and the sign rule covers velocity.
-     `LiveVerticalForce()` is derived from the active list, never stored.
-  2. **Reactive-first** and **the crutch rule** are recorded in ARCHITECTURE.md §Reactive first and
-     §Fixing a bug: events over polls (a poll needs a stated reason), and a domain crutch is allowed only
-     in sketches with a TODO line.
-- **Why:** The sign is not the rule; the force behind the sign is. A ground that can push only up absorbs
-  downward momentum when it is not being exceeded — that is textbook normal force, and it makes both the
-  weak-jet case and the launch case fall out of one rule instead of two guards. Polling a sphere around a
-  sensor would have replaced a working `OnTriggerEnter` with a per-tick query: the user is right that it is
-  over-engineering, and the push shell stays reactive.
-- **Consequences:** `RunningLaunch` is replaced by `LiveVerticalForce()`; `_mass` is read once in the
-  constructor (the inverse mass was already read there). Authoring consequence: a launch that lifts needs
-  `Force > Mass·Gravity` (80 · 19.62 = 1569 N; a nozzle at 45° needs ≈ 2220 N), so the hydrant at 1000 N is
-  a shove by design, not a launch. The suite stays **19/19 green** (`unity cmd test run --mode editor`); the
-  launch-survives-ground invariant is a test to write after the feel pass, together with the rest.
+## D-030: The ground is a normal force, reactive facts stay reactive
+- **2026-11-20 · Accepted · supersedes the sign-only vertical rule; recorded in ARCHITECTURE §Reactive first and §Fixing a bug**
+- **Decision:** The ground sets vertical to `GroundedGravity` when grounded, vertical is downward, **and** the live vertical force ≤ `Mass · Gravity`; above weight the contact breaks and the launch accumulates, below weight the contact cancels the push — honest, a weak jet cannot lift you.
+  `LiveVerticalForce()` is derived, never stored, **private**. Prefer reactive facts (Unity events); a poll needs a stated reason.
+- **Why:** The sign is not the rule; the force behind the sign is. "Absorb vertical when it points down" kills every timed launch because the grounded rest value is negative, and "no absorption while any push points up" is force-blind: a weak jet is never absorbed and the body accelerates
+  **through** the ground. A launch that lifts needs `Force > Mass·Gravity` (80 kg × 19.62 = 1569 N, a 45° nozzle ≈ 2220 N), so a 1000 N hydrant is a shove by design.
 
-## D-031: The preset list is `[SerializeReference]` - the DTO's type is its shape
-- **Date:** 2026-11-21
-- **Status:** Accepted (supersedes D-029's points 1 and 3 - the single DTO and `PushPresetDrawer`; the one
-  list, `IPushPresets`, `PresetOf`, the Vector3 direction, the scalar envelope, the two entry points and the
-  measured numbers all stand, and D-028's DTO split is restored)
-- **Context:** The authoring surface D-029 built does not work in the Inspector: `PushPresetData` is a
-  `[Serializable]` **class**, and adding an element to a class array gives a **null slot** that no drawer can
-  fill - the entry draws as an empty box and every number the designer typed was lost (G-021). The user asked
-  for `[SerializeReference]` ("a list where the entries are objects of different types") and offered a
-  drawer-with-flags approach as the fallback. A flag whose only job is to hide fields a shape cannot read is
-  the crutch D-028 had already named.
-- **Decision:**
-  1. **The base is abstract:** `PushPresetData {Type, Name}` with abstract `Force` and abstract
-     `IsImpulse`; `ImpulsePresetData {Force}` (N*s, **no** Duration and **no** curve fields at all) and
-     `SustainedPresetData {Force, Curve, Duration}` (N, envelope, duration). The shape is the **type** of the
-     DTO, never an authored flag.
-  2. **The list is `[SerializeField, SerializeReference] PushPresetData[]`** in `PushPresets`: Unity's
-     Inspector draws a concrete-type dropdown per entry, instantiates the instance itself and shows exactly
-     the fields the chosen type has. `PushKind` and `PushPresetDrawer` are deleted. The drawer's unit labels
-     (`N·s` vs `N`) move to `[Tooltip]` on each authored field, so the Inspector states the unit without a
-     drawer. The attribute must be **in the file** — a doc-comment that promises it is not the feature
-     (G-021).
-  3. **The runtime branch is a type check:** `TickPushes` asks `IsImpulse` and casts to
-     `SustainedPresetData`; `EnvelopeAt` moves from `PlayerMotion` to the DTO that owns the curve.
-  4. **The asset is authored through Unity** (`script eval` writing `managedReferenceValue`, then
-     `ApplyModifiedProperties` + `SetDirty`), never as hand-written YAML: a SerializeReference block needs
-     `typeInfo` and `fileID`s that Unity generates. Numbers stay as measured: HydrantPush Sustained **4500 N**
-     curve 1->0 dur 1 s, ExtinguisherShove Sustained 300 N flat dur 0.1 s, PlayerJump Sustained **2600 N**
-     keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N*s.
-- **Why:** A list of variants is data, and the Inspector is the author's interface: data that cannot be
-  created there makes the design unusable, however correct the code is. SerializeReference makes Unity
-  instantiate what the author picks, so field visibility stops being a rule in code and becomes a fact of the
-  type - an Impulse has no Duration to hide, because it has no Duration. The builders the tests use
-  (`Presets.Impulse` / `Presets.Sustained`) return these same classes, so the asset and the tests author one
-  shape.
-- **Consequences:** `PushKind.cs` and `PushPresetDrawer.cs` are deleted with
-  `unity cmd asset delete --asset <path> --confirm true`; `Presets.cs`, `StubPresets.cs`, `PlayerMotionTests`
-  and `PlayerJumpTests` are re-typed to the concrete DTOs. New `.cs` files must be written **through Unity**
-  (`asset write_text`): with `autoRefresh: disabled` an external file is never imported as a script and the
-  compile reports `CS0246` (G-022). The asset's GUID is unchanged, so the scene references survive; the gate
-  after the change is `script recompile` → `up_to_date` and `test run --mode editor` → **19/19**.
+## D-031: The preset list is `[SerializeReference]` — the DTO's type is its shape
+- **2026-11-21 · Accepted · supersedes D-029's single DTO and drawer, restores D-028's split; `Name` deleted by D-032**
+- **Decision:** `PushPresetData` is abstract with `Type`, abstract `Force` and `IsImpulse`; the list is `[SerializeField, SerializeReference]`, so the Inspector draws a concrete-type dropdown, creates the instance and shows exactly that type's fields. `PushKind` and the drawer are deleted, units
+  move to `[Tooltip]`, the runtime branch is `IsImpulse`.
+- **Why:** Adding an element to a `[Serializable]` **class** array creates a null slot no drawer can instantiate — the entry draws as an empty box and every typed number was lost (G-021). A flag whose only job is hiding fields a shape cannot read is a crutch; a comment promising an attribute not in
+  the file is a claim, not a feature.
 
-## D-032: A preset has no Name - `Type` is the whole authored identity
-- **Date:** 2026-11-21
-- **Status:** Accepted (supersedes D-031's `Name` field and D-029's `Name` label; the rest of both entries
-  stands: `[SerializeReference]`, the two DTOs, `PresetOf`, the unit tooltips, the measured numbers)
-- **Context:** The user's read of the Inspector: "There is an unnecessary field: Name. Let's use only Type and
-  remove the name." The check that makes it true: `PresetOf(PushType)` is the only lookup in the code, nothing
-  prints a preset's `Name`, and the scene's sources store `PushType` - so the label was a second identity for
-  one entry, authored by hand and read by nobody.
-- **Decision:**
-  1. **`PushPresetData` holds `Type` only.** `Name` and its tooltip are deleted; the constructors take
-     `(PushType type)` and the DTOs take their own fields.
-  2. **The asset is re-authored through Unity** with the new constructors, so the `_name` keys leave the YAML.
-     Numbers unchanged: HydrantPush 4500 N curve 1->0 dur 1 s, ExtinguisherShove 300 N flat dur 0.1 s,
-     PlayerJump 2600 N keys 1@0/1@0.2/0.5@0.7/0@1 dur 1 s, ExtinguisherKick Impulse 300 N�s.
-  3. **No value tuning by test sweeps.** The gate is the one standing run (`script recompile` ->
-     `up_to_date`, `test run --mode editor` -> 19/19). Preset numbers move from the **user's play** (the
-     `[v]` log is read afterwards), never from a search over parameters: the user's measurement is that
-     "running many tests to find the best preset values is very time consuming".
-- **Why:** A field that no code reads is authoring overhead, and in a keyed list it invites the designer to
-  believe two entries can share a name while the lookup uses the key. The name of a push is already the
-  `PushType` value the source stores.
-- **Consequences:** `Presets.Impulse` / `Presets.Sustained` builders lose the `type.ToString()` name argument;
-  the asset's YAML shrinks one line per entry. The suite stays **19/19** (`unity cmd test run --mode editor`)
-  on the same day, and the feel numbers keep coming from the user playing, not from parameter search.
+## D-032: A preset has no Name — `Type` is the whole authored identity
+- **2026-11-21 · Accepted · supersedes the `Name` field of D-029, D-031**
+- **Decision:** `PushPresetData` holds `Type` only; the asset is re-authored through Unity so `_name` keys leave the YAML, numbers unchanged.
+- **Why:** `PresetOf(PushType)` is the only lookup, nothing prints a preset's name, sources store `PushType` — the label was a second identity authored by hand and read by nobody, and in a keyed list it invites believing two entries share a name.
 
-## D-033: Dead surface is deleted - one push entry point, `IPushPreset` with its facts, 4 `PushType` values
-- **Date:** 2026-11-21
-- **Status:** Accepted (the user's rule: "Clean all the dead fields if they present". Retires D-029's two
-  shape-named entry points, the empty `IPushPreset`, four `PushType` values with no source, the `Burnable`
-  body, and the temporary `[v]` diagnostic log. The DTO shapes, `PresetOf`, `[SerializeReference]` and the
-  authored numbers of D-031/D-032 stand.)
-- **Context:** After the preset authoring worked, the whole surface was read through once: every
-  `[SerializeField]`, every private field and every public accessor in `_Core` was checked for a reader. The
-  GameSettings numbers all have one. What did not: `ApplyImpulse` and `ApplySustained` (one body, two names),
-  `LiveVerticalForce` (public, read only by `ApplyContact`), `IPushPreset` (declared `Type` only, and no code
-  was ever typed as it), four enum values nothing fires, `BurnableSystem` (an empty class) with `Burnable`
-  (a private list nothing touched and fields with no readers), and the `[v]` log in `PlayerMotor`, whose job
-  was the feel measurements.
-- **Decision:**
-  1. **`PlayerMotion.ApplyPush(preset, worldDirection)` is the single entry point.** The shape is the DTO's
-     type (D-031), so an entry point cannot branch: two methods named by shape are a second name for one
-     behavior. `Player.ReceivePush` forwards to it; `PlayerMotor.ApplyForce` forwards to that.
-  2. **`LiveVerticalForce()` is private.** Its only reader is the ground's normal-force rule; the `[v]` log
-     that read it for the feel pass is removed, and the numbers it gave are already in `TODO.md`.
-  3. **`IPushPreset` gains `Force` and `IsImpulse`.** The interface previously promised only `Type` and no
-     consumer used it, so it is now exactly the three facts `TickPushes` and the ground's rule read.
-  4. **`PushType` keeps `HydrantPush`, `ExtinguisherShove`, `PlayerJump`, `ExtinguisherKick`.**
-     `DebrisShove`, `FireBlast`, `HydrantBurst`, `SprayPuff` are deleted: no source fires them and no asset
-     entry is keyed by them. The indices of the four kept values are unchanged, so the `_type` ints already
-     authored in `Push Presets.asset` survive, and the cap tests, which use `(PushType)i` casts for 9 pushes,
-     are unaffected.
-  5. **`BurnableSystem` and `Burnable` are deleted; `IBurnable` stays** as the authored contract of D-008
-     pillar 1 (the implementation is the Phase 1 work in `TODO.md`). A class whose fields are read by nobody
-     is authored overhead.
-- **Why:** A field with no reader tells the designer it is read, and a second name for one behavior is a
-  second rule. Deleting them costs nothing and removes the claim.
-- **Consequences:** `PlayerMotionTests` call `ApplyPush` (11 sites), the suite stays **19/19**
-  (`unity cmd test run --mode editor`), `PlayerMotor` is log-free, and the enum's named values are the sources
-  that exist. The asset's authored jump is the **user's** tuning (an Impulse 700 N�s in the Inspector), not a
-  number I re-wrote.
+## D-033: Dead surface is deleted — one push entry point, `IPushPreset` with its facts, 4 `PushType`
+- **2026-11-21 · Accepted · the user's rule: "Clean all the dead fields if they present"**
+- **Decision:** `PlayerMotion.ApplyPush(preset, worldDirection)` is the single entry point; the two shape-named methods, `LiveVerticalForce` as public, the empty `IPushPreset`, four `PushType` values nothing fires, and the unread `Burnable` body are deleted. `IPushPreset` gains `Force` and
+  `IsImpulse` — the three facts the ticking and the ground's rule read; kept enum indices unchanged, so authored `_type` ints survive.
+- **Why:** A field with no reader tells the designer it is read, and a second name for one behaviour is a second rule. Deleting them costs nothing and removes the claim.
 
 ## D-034: A jump carries the player's speed as momentum, not as a tilt of the launch
-- **Date:** 2026-11-22
-- **Status:** Accepted (the user's rule: keep the speed influence, do not spoil the vertical launch — a
-  running jump must not be lower than a standing one, and the slower you run the less it carries you).
-  Supersedes nothing: the jump gate (D-017, D-021), the authored preset (D-029, D-031, D-033) and the three
-  channels (D-016) all stand.
-- **Context:** The user wanted the jump to carry the player in the direction of movement with the force of
-  their speed, and drafted `direction = Vector3.up + _controlVelocity.normalized *
-  (_controlVelocity.magnitude / _movement.DesiredVelocity.magnitude)`. Reading it gave three facts:
-  (1) standing still is `0/0` = **NaN**, and `AddActivePush`'s `direction.sqrMagnitude > 0.0001f` guard
-  compares **false** against NaN, so the direction became `Vector3.zero` — the entry was created, the launch
-  had no direction, **the jump did not fire, and nothing reported it** (G-023);
-  (2) the direction is normalized inside the entry point and the impulse magnitude is authored, so tilting it
-  at full speed splits the launch 45°/45°: the vertical launch drops by √2 — **a running jump jumps lower
-  than a standing one**;
-  (3) the ratio is *proximity to the authored target speed*, not speed: walking (5) and sprinting (8) both
-  reach 1, so a run-up buys nothing.
-- **Decision:**
-  1. **The preset launches straight up, untouched:** `ApplyPush(PresetOf(PlayerJump), Vector3.up)`. The
-     authored `Force` is the launch, so height stays the number the user tunes in the Inspector and no speed
-     rule touches it.
-  2. **The player's own speed is carried into the push channel as inertia** in the same tick:
-     `AddPushDelta(_controlVelocity * JumpCarry)`. `JumpCarry` is authored in `IGameSettings`/`GameSettings`,
-     default **1**: a sprint jump carries the whole 8 m/s, a walk jump carries its 5, standing carries exactly
-     zero. The direction of the carry is the direction of movement, so it needs no facing.
-  3. **The carry is a velocity in the push channel, not a force:** `MaxPushSpeed` bounds it, `AirDrag` decays
-     it through the flight, `GroundDrag` absorbs it on landing — the rules every shove already obeys (D-016,
-     G-012). No new list entry and no `Carry` field on the DTO: an authored preset cannot hold a magnitude
-     derived from a live velocity, and a field 3 of 4 presets cannot read is authored overhead (D-028, D-031).
-- **Why:** A tilt trades height for reach, adds a knob the user cannot author, and **punishes the run-up** —
-  the opposite of what the mechanic is for. Carrying the velocity is the physical fact: nothing opposes
-  horizontal motion at the moment of launch, so the model's own channel rules decide what survives it.
-  Multiplying by zero is not a division, so the degenerate case (standing) needs no guard.
-- **Consequences:** `TryJump` is two statements and reads no ratio; `_movement.DesiredVelocity` plays no part
-  in the jump. One authored number (`JumpCarry`) is tuned by the user playing, not by a parameter sweep
-  (D-032). The jump tests drive `_input.InputDirection = 0`, so the carry is zero there and the suite is
-  unchanged. After the user played and approved the feel (2026-11-22), **T14a-T14e** assert it: standing
-  carries zero, `PushVelocity == control * JumpCarry` on the jump tick, walk 5 vs sprint 8, a carry above
-  `MaxPushSpeed` saturates at the cap, and the carry outlives the jump tick decaying only by `AirDrag` —
-  `unity cmd test run --mode editor` → **24 tests, 24 passed**.
+- **2026-11-22 · Accepted · the user's rule: a running jump must not be lower than a standing one**
+- **Decision:** The preset launches straight up, untouched; the player's speed is carried into the push channel as inertia in the same tick, `ControlVelocity * JumpCarry` (authored, default 1) — a velocity, not a force, so `MaxPushSpeed` bounds it, `AirDrag` decays it in flight, the ground absorbs
+  it on landing.
+- **Why:** A tilt trades height for reach, adds a knob the user cannot author, and punishes the run-up: the direction is normalized inside the entry point, so tilting at full speed splits the launch 45°/45° and the vertical drops by √2. The drafted ratio was `0/0` = NaN standing, and the epsilon
+  guard accepted NaN as "no direction" (G-023). Multiplying by zero is not a division, so the degenerate case needs no guard.
 
-## D-035: `GameSettings` is grouped with Unity headers, not Odin
-- **Date:** 2026-11-22
-- **Status:** Accepted (the user's call: "for now, no Odin"). The Inspector ordering is authored surface, so
-  it lives in `GameSettings.cs`; the numbers and `IGameSettings` are unchanged.
-- **Context:** 16 authored numbers in one flat list became hard to navigate. The measured facts about Odin
-  4.1.0 in this project: the editor assemblies (`OdinInspector.Editor` 3509 KB, `Utilities.Editor` 1221 KB,
-  `Reflection.Editor` 59 KB) are excluded from players and already sit in the editor, so they cost nothing
-  new; the runtime chain a reference to `Sirenix.OdinInspector.Attributes` pulls in is
-  112 + 418 + 172 + 18 ≈ **720 KB** into the WebGL assembly graph, and its real shipping size after IL2CPP
-  full stripping **cannot be measured today** — there is no WebGL build (B-001, D-019), and the rule says a
-  measurement happens in a web build (D-007, G-010). Odin's `[Group]`/`[Header]` live in that runtime
-  assembly (the field must serialize them), so "the grouping is editor-only" is not available with Odin.
-  Unity's own `[field: Header]` and `[field: Tooltip]` need no package at all, so nothing ships.
-- **Decision:**
-  1. **Five groups in the file, in the order a designer tunes them:** Locomotion (3 speeds), Steering
-     (accelerations + friction), Body & gravity (Mass, Gravity, GroundedGravity, TerminalVelocity),
-     Jump (`JumpCarry` — the launch itself stays in `Push Presets.asset`), Push channel (GroundDrag,
-     AirDrag, MaxPushSpeed), Look. Every number carries a `[Tooltip]` with its unit and what it decides,
-     so the Inspector says what the number does.
-  2. **The dead `<JumpPreset>` block (78 lines) is deleted from `Game Settings.asset`** — the type was
-     removed by D-029, so the block was data with no reader. Written through Unity
-     (`unity cmd asset write_text`), so the asset re-imported; `component get_fields` read back every number
-     including the user's tuned `LookPitchBounds` (-75/45), and the asset's GUID is unchanged, so scene
-     references survive.
-- **Why:** A header is a fact of the Inspector, and Unity's own attributes cost nothing in a WebGL build;
-  the shipping target is WebGL (D-007), so a 720 KB unmeasurable cost buys only foldouts. Odin is not banned
-  — if a foldout UI is ever wanted, the honest path is a `CustomEditor` in `_Core/Editor` (zero build weight),
-  and a vendor reference in `FlameNBlame.asmdef` is the G-001 trap.
-- **Consequences:** `unity cmd script recompile` → `compilationFailed: false`, `console get` → 0 errors,
-  `unity cmd test run --mode editor` → **24/24** (no logic touched), `component get_fields` on the asset →
-  16 fields, no `JumpPreset`. Reordering the properties changes the Inspector order only: Unity serializes
-  auto-properties by backing-field name, so every authored value survives.
+## D-035: `GameSettings` grouped with Unity headers, not Odin
+- **2026-11-22 · Accepted · the user's call: "for now, no Odin"**
+- **Decision:** Groups in the file, in the order a designer tunes them, each number with a `[Tooltip]` stating its unit and what it decides; Unity's own `[Header]`/`[Tooltip]`, no Odin.
+- **Why:** Unity's attributes cost nothing in a WebGL build; the Odin runtime chain is ~720 KB and its shipping size after IL2CPP stripping cannot be measured today (no web build, D-019). A header is a fact of the Inspector, so grouping lives in code. Odin is not banned: a `CustomEditor` in
+  `_Core/Editor` is the zero-weight path.
 
-## D-036: Contact decides who has authority over momentum - air control never adds to a shove, a counter-run eats it
-- **Date:** 2026-11-22
-- **Status:** Accepted (the user named the symptom: `it feels like pure sliding on ice`). The feel pass is
-  the user's; the rate reused here (`GroundFriction`) is authored, no new knob was invented.
-- **Context:** `ControlVelocity` and `PushVelocity` are summed and each decays on its own rule, so a shove
-  never learns what the player is doing: run against a 10 m/s shove and the player moves at 5 m/s in the
-  shove's direction while the input says the opposite - the input and the inertia coexist, which is what
-  ice feels like. The user's ask, in two halves: running **with** a shove must not add speed (`the speed
-  must stay only from the shove, at least in the air`), running **against** one must kill it fast on
-  landing and let the player run fully. The first cut of the model had one decay rate for ground and air,
-  and that was the first ice symptom (G-012, fixed by D-020).
-- **Decision:**
-  1. **Airborne, control has no authority over momentum.** The legs have no ground to push against, so
-     the component of `ControlVelocity` **along** the shove is removed every airborne tick: the speed in
-     the shove's direction is the shove's. Steering **across** a shove keeps the player's own
-     `PlayerSpeedInAir` - the clamp is a projection, not a suppression.
-  2. **Grounded, the ground's reaction is a real force**, so the running legs act on the body's momentum:
-     running **against** a shove eats the shove's component along the input at `GroundFriction`, on top of
-     `GroundDrag` (12 + 4 = 16/s, so a 10 m/s shove is gone in about a tenth of a second). Running **with**
-     it eats nothing and adds nothing; the sign of `Vector3.Dot(shoveAxis, desired)` is the whole rule.
-     `MaxPushSpeed` is the ground's guard against added speed.
-  3. **`GroundFriction` is reused, no new authored field.** If the feel pass needs the absorption rate
-     separate from the stop-press rate, `CounterAbsorb` is added then - the same reason `GroundFriction` is
-     authored apart from `GroundDrag` (D-020).
-- **Why:** The same physical fact the vertical rules already use: a force needs something to push against.
-  Airborne, the player's effort has no reaction, so it cannot be a force on the body - which is exactly the
-  `PlayerSpeedInAir` model (D-016) taken to its end. On the ground, friction is the reaction, so it acts on
-  the total momentum, not on one channel. Writing the rule as the sign of a dot product means zero input
-  (`T13`'s pure `GroundDrag` decay) and a perpendicular shove (`T5`'s untouched control) pass through the
-  rule's early exits, not by luck.
-- **Consequences:** `ApplyInputControl` gains a 6-line air clamp, `AbsorbCounterRun` is the new step between
-  drag and cap, and `ShoveAxis()` is the shared axis both read. **T15a-T15c** pin it: the air clamp
-  (`Velocity == the shove`, `ControlVelocity == 0` along it), steering across a shove keeps 2 m/s,
-  counter-run decay `shove*(1-(GroundDrag+GroundFriction)dt)^n` vs the pure `GroundDrag` decay when running
-  with it - all analytic, no invented number. `unity cmd script recompile` → 0 errors,
-  `unity cmd test run --mode editor` → **27 tests, 27 passed** (the 24 existing are untouched: T13, T5, T2,
-  T4, T14e pass through the early exits, so the suite is a witness, not a victim).
+## D-036: Contact decides who has authority over momentum
+- **2026-11-22 · Accepted · the ground half superseded by D-038; the air clamp stands**
+- **Decision:** Airborne, control has no authority over momentum: the component of `ControlVelocity` **along** the shove is removed every tick, so the speed in the shove's direction is the shove's, while steering **across** keeps `PlayerSpeedInAir` (a projection, not a suppression). Grounded, the
+  ground's reaction is a real force, so the running legs act on the total momentum.
+- **Why:** The same fact the vertical rules use: a force needs something to push against. Airborne the player's effort has no reaction, so it cannot be a force on the body; input and inertia coexisting is what ice feels like (G-012).
 
-## D-037: The authored config is split - `PhysicsSettings` and `PlayerControlSettings`, `GameSettings` binds them
-- **Date:** 2026-11-22
-- **Status:** Accepted (the user's ask: "`GameSettings` по набору параметров больше похож на `PlayerPhysicsSettings`…
-  выносить настройки физики и (скорости + чувствительности поворотов) в отдельные конфиги"; `PlayerControlSettings`
-  approved by name, `PhysicsSettings` is provisional — the physics is not player-only, so the name carries no
-  `Player` prefix. A rename is cheap: one type, one asset, one field).
-- **Context:** 16 authored numbers sat in one asset and one port, so every consumer read the whole surface:
-  `PlayerLookRotator` (look only), `PlayerMovement` (speeds only) and `PlayerMotion` (mass, drags, cap, carry)
-  all took `IGameSettings`. The D-035 grouping made this visible — five different subjects in one file, and the
-  user read the file as a physics config.
-- **Decision:**
-  1. **`IPhysicsSettings` / `PhysicsSettings` + `Physics Settings.asset`** — `Mass`, `Gravity`,
-     `GroundedGravity`, `TerminalVelocity`, `GroundFriction`, `GroundDrag`, `AirDrag`, `MaxPushSpeed`,
-     `JumpCarry`: what a push does to a mass, what the contact absorbs, what the air keeps, what the push
-     channel is capped at. The name is **not** player-prefixed: a debris piece, a wave, a burnable body read
-     the same numbers, so the port is the project's physics, not `Player`'s.
-  2. **`IControlSettings` / `PlayerControlSettings` + `Player Control Settings.asset`** — `PlayerSpeedBase`,
-     `PlayerSpeedSprint`, `PlayerSpeedInAir`, `GroundAcceleration`, `AirAcceleration`, `LookSensitivity`,
-     `LookPitchBounds`: what the player **commands**. Commands, not forces — the air speed exists in a model
-     with no reaction force (D-016), and in flight control never adds to a shove (D-036).
-  3. **`IGameSettings` is the session's facade:** `Physics` + `Control`, no numbers of its own. A session rule
-     that needs a number (a win score, a wave count, a timer) joins this port **together with the system that
-     reads it** — a field with no reader is dead surface (D-033).
-  4. **Wiring:** `Player(input, physics, control, presets)`, `PlayerLookRotator(input, control)`,
-     `PlayerMovement(input, control, look)`, `PlayerMotion(movement, physics, control, presets)`;
-     `GamePlaySession` passes `_gameSettings.Physics` and `.Control`. `Bootstrapper` is unchanged — the scene
-     binds `Game Settings.asset` by GUID, and the GUID did not move.
-  5. **`StubSettings` is deleted;** `StubPhysics` + `StubControl` replace it. Analytic expectations are
-     unchanged, so the suite is the gate for the split, not its victim.
-- **Why:** A port should hold what its reader reads: `PlayerLookRotator` has no business knowing a Mass, and a
-  physics port that is not owned by `Player` is the place for every later body in the level. Splitting by
-  **subject** is what the D-035 grouping already said the file was.
-- **Consequences:** Three assets, each its own Inspector screen grouped per D-035; `Game Settings.asset` is two
-  object slots. The authored values survived the move (`component get_fields` read back 80, 19.62, -2, 40, 12,
-  8, 0.5, 12, 1, 5, 8, 2, 20, 6, 0.17, -75/45), including the user's tuned `GroundDrag` **8** and pitch bounds
-  **-75/45**, written through Unity (`asset write_text` for the values and for the two references;
-  `component set_field` takes an object reference as a plain path string, not as an ObjectRef JSON — G-024).
-  `unity cmd script recompile` → 0 errors, `unity cmd test run --mode editor` → **27 tests, 27 passed**
-  (12 jump + 15 motion, the same 27 as before the split). The next physics pass is the **friction merge**
-  (TODO, agreed with the user 2026-11-22): `GroundFriction` is μN/Mass and `GroundDrag` is the same force seen
-  through a second channel, so one ground rate on the **total** horizontal momentum is the honest shape — that
-  pass deletes `GroundDrag`, folds the user's 8 into `GroundFriction`'s ceiling, and re-signs T13/T15c.
+## D-037: The authored config is split by subject, `GameSettings` binds them
+- **2026-11-22 · Accepted · the user's ask: physics and speeds into separate configs**
+- **Decision:** `IPhysicsSettings` + `Physics Settings.asset` — mass, gravity, the grounded rest value, terminal velocity, the ground rate, air drag, the push cap, jump carry. `IControlSettings` + `Player Control Settings.asset` — the three speeds, accelerations, look. `IGameSettings` is the facade
+  with the two references and no numbers of its own; a session rule joins it only with the system that reads its number.
+- **Why:** A port holds what its reader reads: `PlayerLookRotator` has no business knowing a Mass, and every consumer of one flat asset read the whole surface. The physics port is not player-prefixed — debris, a wave, a burnable body read the same numbers.
 
-## D-038: The ground has ONE authored force — `GroundFriction` ramps the run, stops it, and eats a shove
-- **Date:** 2026-11-22
-- **Status:** Accepted (the user's rule: *"за трение с поверхностью отвечал один параметр. Иначе это очень сложно
-  настраивать, тестировать и вообще код становится сложнее"*; the merge was proposed in the previous session and
-  the user approved it, so this entry names the shape, not the idea).
-- **Context:** Three authored numbers described **one** force: `GroundFriction` (μN/Mass, 12) stopped the
-  control on input release, `GroundDrag` (the user's tuned 8) decayed the shove, `GroundAcceleration` (20)
-  ramped the run. The wall between `GroundFriction` and `GroundDrag` is exactly what D-020 named as the ice
-  symptom, and D-020's own note ("share the rate and a snappy stop-press drags the shove to a halt too") is the
-  argument for keeping them apart. The wall did not hold: `GroundAcceleration` 20 > μ 12 is unphysical — the
-  legs cannot push harder than the ground's reaction — so the effective ground rate was `min(20, 12)` = 12 all
-  along, two numbers had to be tuned against each other, and D-036 added a **sign rule** (the dot product of
-  the shove axis and the input) so a counter-run ate the shove at 12 **on top of** 8, giving 16/s one way and
-  4/s the other. The Inspector, the tests and the tuning all paid for that split.
-- **Decision:**
-  1. **`GroundFriction` is the ground's single rate** (μN/Mass, m/s²). Grounded, one number does three jobs:
-     it ramps `ControlVelocity` toward `DesiredVelocity`, it brings the control to rest when the input is
-     released, and it eats the momentum in the push channel — **in every direction**.
-  2. **`GroundDrag` and `GroundAcceleration` are deleted** — from `IPhysicsSettings`/`IControlSettings`,
-     `PhysicsSettings`/`PlayerControlSettings`, both assets, and the stubs. A ramp rate that is always clamped
-     by μ is a number with no effect: dead surface (D-033).
-  3. **`AbsorbCounterRun` (19 lines) and the sign rule are deleted.** `ShoveAxis()` stays for the air clamp
-     only — D-036's air half survives unchanged (control's component along a shove is removed in flight,
-     steering across keeps `PlayerSpeedInAir`). The ground rule is `ApplyDrag` at the same rate
-     `ApplyInputControl` uses.
-  4. **Authored value 8** — the user's tuned `GroundDrag` becomes the ground's rate: 0→5 m/s in 0.63 s, a
-     10 m/s shove gone inside a second, 0→8 m/s sprint in 1 s. One knob: raise it for a snappier start and a
-     harder stop, lower it toward 2 for a long skid.
-- **Why:** μN/Mass is **one force**; the channels are the model's bookkeeping, not physics. A player running
-  with a shove cannot keep the excess speed, because the excess is slip, and friction eats slip — which is the
-  same fact D-036 wrote for the air (a player cannot push against nothing) read from the ground side. A ground
-  with three numbers is not tunable, and the user's rule for authoring is that one behaviour gets one knob.
-- **Consequences:** `ApplyInputControl`'s rate is one line (`GroundFriction` grounded, `AirAcceleration`
-  airborne, 0 in the air on release), `ApplyDrag` is the same rate, and the step order is
-  contact → jump → gravity → pushes → control → drag → cap → sum. `IPhysicsSettings` is 8 fields,
-  `IControlSettings` 5. Tests re-signed, all analytic: **T3** (the ground eats horizontal momentum from the
-  first grounded tick, not on landing as a switch), **T5** (the shove keeps its channel, decayed by one ground
-  tick), **T13** (the asymmetry is `AirDrag` vs `GroundFriction`, one rate per contact state), **T15c** (the
-  same rate eats the shove in both directions, the run reaches full speed), **T14b/T14c/T14e** (the jump's
-  carry is eaten by the ground on the jump tick, then by `AirDrag` in flight). D-020's two-rate split and
-  D-036's ground half are **superseded**; the air clamp stands. `unity cmd script recompile` → 0 errors,
-  `unity cmd test run --mode editor` → **27 tests, 27 passed**. The feel verdict the user was playing for is
-  now a single number to play with: `GroundFriction` 8.
+## D-038: The ground has ONE authored force — `GroundFriction`
+- **2026-11-22 · Accepted · the user's rule: one parameter for surface friction · supersedes D-020's two rates and D-036's ground half**
+- **Decision:** Grounded, one number does three jobs: ramps the run toward `DesiredVelocity`, brings the control to rest on input release, eats the push-channel momentum **in every direction**. `GroundDrag`, `GroundAcceleration` and the counter-run sign rule are deleted; D-036's air clamp untouched.
+- **Why:** μN/Mass is **one force**; the channels are bookkeeping, not physics. `GroundAcceleration` 20 > μ 12 is unphysical — the legs cannot push harder than the ground's reaction — so the effective rate was 12 all along, two numbers were tuned against each other, and the sign rule made decay 16/s
+  one way, 4/s the other. Excess speed is slip, friction eats slip, and a ground with three numbers is not tunable.
 
-## D-039: The jump fires on a fresh press fact, not on a held key — bunny-hop has no entry point
-- **Date:** 2026-11-23
-- **Status:** Accepted (the user's call: *"Давай уберем возможность баннихопа"*, after the two entry vectors
-  were named; the input fact is the shell's, the gate stays the domain's).
-- **Context:** D-017 wrote "one press per contact, re-armed on the next contact", and the test
-  `PressHeldThroughALanding_ReBounces` pinned the consequence: a press held through a landing bounces. With
-  `JumpCarry` carrying the run's speed into the flight (`D-034`) and `AirDrag` 0.5 keeping that momentum alive
-  through seconds, the bounce chain is the classic bunny-hop entry: Space held = continuous hops, each hop
-  carrying the previous speed back through the push channel. The shell read the press as a **state**
-  (`IsJumping = ReadValue > 0`), so the domain saw the press on every tick of the hold, and the contact lock
-  released the moment the body left the ground — which is exactly a bounce machine.
-- **Decision:**
-  1. **`IPlayerInput.IsJumping` becomes `JumpPressed`**, a **one-tick fact**: `PlayerInputMain` reports
-     `WasPressedThisFrame()` — Input System's press event — never the held state.
-  2. **`PlayerMovement.IsJumpRequested` reads the fact of this tick** — the request stays in movement, the
-     rule stays in `PlayerMotion` (D-021: request in, rule out).
-  3. **The gate shrinks to two conditions: press fact + grounded.** The contact lock
-     `_jumpFiredThisContact` is **deleted** — it existed only because the press was a state that could last;
-     a fact that lasts one tick cannot be consumed twice, so the flag became dead surface the moment the press
-     became a fact (D-033), and the airborne branch of `ApplyContact` stores nothing. A press seen in the air
-     is not remembered, so a press held through a landing fires nothing; a press at the apex fires nothing;
-     each hop needs a new press.
-  4. **`PressHeldThroughALanding_ReBounces` is replaced by `PressHeldThroughALanding_DoesNotReBounce`**: the
-     landing absorbs the launch, and only a **fresh** press on the contact fires the next jump. Every jump test
-     drives the press through a `PressJump` helper that mirrors the shell (set, one tick, cleared), so a test
-     cannot leave a press true. T10c is renamed `TimedLaunch_KeepsAccumulating_WhileItsForceRuns_OneEntry`:
-     its job was "the launch does not stack", and the press is no longer a hold to stack with.
-- **Why:** A press is an event, and an event that lasts one tick cannot be consumed twice. `WasPressedThisFrame`
-  gives the fact for free, so no state is stored and no flag is added: the gate is two conditions reading a
-  fact that cannot persist, and the class stores no jump state at all. The run-up jump is untouched (the user
-  approved D-034) — the hop spam is what goes.
-- **Consequences:** `IPlayerInput` renames one member, `PlayerInputMain` is one line, `StubInput` mirrors the
-  shell's fact, `PlayerMotion` **loses** the flag and its airborne reset (net: two conditions, zero stored
-  jump state). `unity cmd script recompile` → 0 errors, `unity cmd test run --mode editor` → **27 tests,
-  27 passed** (T10a drives the airborne press as a fact, T10d is
-  `Landing_AbsorbsTheLaunch_AFreshPressFiresTheNextJump`, T10e is the new pin). D-017's "a held press bounces"
-  pin is **superseded**, and so is its "one press per contact, re-armed
-  on the next contact" mechanism — the rule is now **one press per press**, enforced by the fact. The play
-  check is **done**: the user played the gate on 2026-11-23 and accepted it — *"Да, все в порядке"* — the hops
-  are gone and the run-up jump is intact. `AirDrag`/`AirAcceleration` stay split by
-  the user's call (2026-11-23) — in flight there is no reaction force, so the two air numbers are not one
-  force, and merging them would lose the current air feel.
+## D-039: The jump fires on a fresh press fact, not on a held key
+- **2026-11-23 · Accepted · the user's call: no bunny-hop · supersedes D-017's contact lock · play check passed**
+- **Decision:** `IPlayerInput.JumpPressed` is a **one-tick fact** (`WasPressedThisFrame`), never the held state; the gate is two conditions — press fact + grounded — with **zero stored jump state**: the contact flag deleted, a press seen in the air not remembered, each hop needing a new press.
+  `AirDrag` and `AirAcceleration` stay split.
+- **Why:** An event that lasts one tick cannot be consumed twice, so the flag existed only because the press was a state. With `JumpCarry` and `AirDrag` 0.5, held Space was the classic bunny-hop entry: each hop carried the previous speed back through the push channel. In flight there is no reaction
+  force, so the two air numbers are not one force.
+
+## D-040: Fire VFX — object-space shader mask, particle layers, one shared material
+- **2026-11-23 · Accepted for the shader and particles · the domain half superseded by D-043, the lab half by D-048**
+- **Decision:** Char and flame are computed from `positionOS` around `_BurnOrigin` in hand-written ShaderLab — no texture, no UV, no per-prop mask. The material is **shared** across burnables: per-object scalars travel in a `MaterialPropertyBlock`, so 24 objects are **one shader variant**. Particle
+  layers use URP `Particles/Unlit` with **no** soft particles, sorted smoke → fire → puffs.
+- **Why:** A shared material plus object-space noise is the only combination giving whole-geometry coverage for 24 props at one variant and zero texture memory; a mask pays memory and a UV layout per prop, a material instance pays a variant per prop. A Particle System is the web-safe emitter (VFX
+  Graph has no WebGL support), a camera-depth sample is what the web budget cannot pay.
+
+## D-041: Polygonal noise — facets with hard edges, grouping, base texture
+- **2026-11-23 · Accepted · the user's eyes: smooth noise read as soap · the shader is accepted and not touched**
+- **Decision:** `FacetOf(p, size, shape)` returns the cell index and centre in object space; every facet carries **one flat quantized value**, so a transition is one hard line. Grouping is a parameter pair per mask (`_FacetShape`, `_FacetSize`), every mask quantized (`_CharLevels`, `_FlameLevels`,
+  `_ShellLevels`), each boundary a hard `step` line (`_EdgeWidth`, `_EdgeDarken`); the flicker scrolls the **grid** so flames pop between facets; `_BaseMap` is the prop's albedo, sampled in the surface pass only; facet parameters are **material-level** (shared), the shell writes only its per-object
+  scalars.
+- **Why:** Quantization is the only way to get straight edges out of a procedural mask — the smoothness is in the interpolation itself and no scalar removes it. Cost: two integer `FacetOf` calls per fragment, no branches, no new keyword variants, no extra passes, so the D-040 web budget holds.
+
+## D-042: KISS is a standing rule
+- **2026-11-23 · Accepted · the user's rule, verbatim: "это очень перемудреный шейдер"**
+- **Decision:** The **shortest** mechanism that gives the feel is the one to write; a knob, branch, parameter or pass is added only when **the feel or the budget asks for it by name**, not because it is tunable. Work order: simple version → play → complicate **only the exact spot the eyes complained
+  about**. Several variants are the budget for a first draft, not for every part of it; an accepted complex thing stays (the D-041 shader) and the rule applies to the **next** system.
+- **Why:** Every knob is something the project carries forever. A design that needs a paragraph to explain is the version that grows; the version that ships is the one the eyes accept with the fewest parts.
+
+## D-043: Burnable state on one normalized axis; the visuals unbound from the domain numbers
+- **2026-11-24 · Accepted · self-feed and douse floor superseded by D-045, origin by D-046, lab by D-048; supersedes the domain half of D-040**
+- **Decision:** One axis — `IgnitionStrength` 0..1 + `CurrentDurability` (HP) — and **one heat door** `AffectIgnitionStrength(amount)`: the source integrates the amount, `dt` never enters the domain, `FireResistance` (0..1) applies inside, so a wardrobe is hard to ignite **and** hard to douse with
+  one number. Visuals are derived reads (`FireLevel`, `SmokeLevel`, `Charredness = 1 − HP/MaxDurability` — char has no scale, so an extinguished object stays black); the DTO is **5 numbers** (`IgnitionThreshold`, `FireResistance`, `MaxBurnDurability`, `MaxBurnIntensity`, `MaxFirePopulationRange`),
+  the last two reaching only the domain. Spread is a **cursor, not a sweep**: `n = ceil(count/4)` objects per frame, each fed `Σ influence × elapsed_of_that_object`, so the result is `n`-independent.
+- **Why:** Four accumulators needed seven authored numbers to keep them in step, and every one is a knob carried forever (D-042). Keeping `dt` out of the domain keeps its language as "a source gave me this much heat", which is what a rule can be tested on; particle rates, emission, shell height and
+  outline are the **shell's own** numbers — a domain number never sets a particle speed.
+
+## D-044: A hand-test script for the stand
+- **2026-11-24 · Superseded by D-048 · the shell's door and the sign rule untouched**
+- **Decision:** `SprayTest` — one click, one stream, no registration, no timer, no cadence, no domain arithmetic; press, not hold. Deleted with the lab.
+- **Why:** A check that is easy to run is the check that gets run; a rig with a pulse accumulator and registration is a system, and the user needs a click. The shell's door was already the right entry.
+
+## D-045: The ramp is driven by `MaxBurnIntensity`; the char front fixed at the first ignition
+- **2026-11-24 · Accepted · supersedes D-043 on the self-feed, the douse floor and the origin; the cycle and guard superseded by D-048**
+- **Decision:** A burning body feeds itself by **its own intensity**: `I += FireLevel · MaxBurnIntensity · dt`, so `MaxBurnIntensity` is one number with three jobs — the ramp (`(1 − threshold)/MaxBurnIntensity` s), neighbour heat, the rate HP is eaten (burn length `Durability/MaxBurnIntensity` s). A
+  stream wins only when `stream × FireResistance > MaxBurnIntensity` (G-034). The char front is written **once, on the first ignition** (`_originLocked`), `Construct()` unlocks it with the char; no spot-per-douse list, no shader change, no auto restart in a hand test.
+- **Why:** `MaxBurnIntensity` already *is* "how hard this fire works", so it should also be what makes the body grow, and `MaxBurnDurability` becomes readable as seconds. The char mask is measured from the origin, so a new contact re-centres the pattern and dark plateaus recede (G-035) — fixing the
+  origin is the shell copying a fact, not a rule.
+
+## D-046: The sign of the stream picks the cosmetic fact
+- **2026-11-24 · Accepted · supersedes D-045 on *when* the origin is written; the `SprayTest` half by D-048**
+- **Decision:** `ApplyStream(amount, Vector3? contact)` reads the **sign**, and the sign is the source's (G-031): `amount > 0` (fire) writes `_BurnOrigin` at the contact once, on the first ignition, no puff; `amount < 0` (water) plays the splash at the contact and leaves the origin where the fire
+  put it. No point → the centre is the contact.
+- **Why:** One door, one sign, no new state, no flags, no enums: the sign is the only fact distinguishing fire from water, so it is the cheapest selector. The char front is the fire's mark, the splash water's; mapping a contact's cosmetic is the shell's job, not a fire rule.
+
+## D-047: The fire code swept for dead fields, duplicated numbers, inert tooling
+- **2026-11-24 · Accepted · items 3–4 (the builder's numbers, the ContextMenu) deleted with the lab by D-048; no rule and no number changed**
+- **Decision:** Delete fields written and never read (a cached mesh array, a pool list the session never needed); make `TickBurn` private — a public second entry to a rule lets a caller burn the body twice in a frame; delete the numbers the defaults already carry, the material values the shell
+  overwrites every tick, and the `[ContextMenu]` on a parameterised method; fix stale citations.
+- **Why:** The house rules are the test: a field written and never read lies about what the system uses; the same number in a builder and a default is two numbers to tune; a dev rig that logs a warning **per object** is a rig that does not do what it says (G-039).
+
+## D-048: The lab is deleted; the pool is one for the scene, injected at composition
+- **2026-11-24 · Accepted · supersedes D-044, D-045's cycle, D-046's hand-spray, D-047's items 3–4**
+- **Decision:** The dev rig, driver, hand-spray and editor builder are deleted, the session knows nothing about a demo cadence; the accepted VFX assets stay (shader, shared materials, prefabs) as authored content, not scaffolding. **One** `SmokePuffPool` for the whole scene, handed to the session by
+  `Bootstrapper` as a serialized field, referenced by every shell, never scanned for. Nothing ignites today: no prop carries a shell. The visual verdict moves from the lab stand to the game — made by playing props that burn.
+- **Why:** A dev rig inside the session is a rule the game carries for no game reason; the puff budget (32 alive) is a **scene** number, so N pools is N × the budget; a `FindObjectsByType` scan for a service the composition can hand in is the same shape STYLE.md bans for the tick (G-040).
+
+## D-049: Doc budgets are a test, not a rule
+- **2026-11-25 · Accepted · the user's ask: make the docs stop growing · suite runs green**
+- **Decision:** Every doc has a line budget, a per-entry budget and a max line length, written once in docs/README.md and asserted by `DocBudgetTests` (the editor suite reads the docs as plain text). A red test is compacted **before** code, never by raising the number. Routing lives in one file and
+  every other doc points at it; `AGENTS.md` is a pure pointer to `CLAUDE.md`. Numbers, gate outputs, test counts, CLI transcripts, scene coordinates and probe values are banned from every doc — they belong to the commit body and to `TODO.md` status lines.
+- **Why:** A length rule on paper failed: the log grew ~250 lines a day for a week under "keep them short", because an append-only entry cannot be compressed, so writing more was the only legal move. Making entries editable (history lives in git) removes the reason for a long entry; a test that reads
+  the files makes the budget impossible to skip, and the ban on run-output text removes the bulk a session produces every day.

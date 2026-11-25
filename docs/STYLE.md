@@ -91,14 +91,7 @@ in DECISIONS.md).
 
 ## Docs
 
-One job per file (D-024), and updating the right one is part of the work, not an afterthought:
-**TODO.md** = the work list, bugs included (`- [ ] B-xxx`, done when the test passes);
-**DECISIONS.md** = §Current structure (folders, namespaces, who talks to what) + the append-only
-decision log with the *why*; **ARCHITECTURE.md** = how to build (edit §Project-Specific Structure in the
-same change that moves a layer); **GOTCHAS.md** = the moment we get burned, with a one-line Rule;
-**STYLE.md** = conventions. `docs/README.md` is the index; `CLAUDE.md` stays at repo root and only
-points here (G-009). There is no `BUGS.md` — it was merged into TODO.md on 2026-11-20. Keep them short.
-
-Design docs (`TDD.md`, `Preproduction.md`) are the contract: read, don't rewrite. A change of scope is
-a new DECISIONS entry, never an edit to the TDD.
+Routing, budgets and the writing rules live in **[`docs/README.md`](README.md)** — the single place that
+defines them. Updating the right file is part of the work, not an afterthought, and the doc-budget test
+is the gate that says a file has grown past its budget. Design docs are the contract: read, don't rewrite.
 

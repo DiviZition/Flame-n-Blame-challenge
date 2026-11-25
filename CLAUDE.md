@@ -119,17 +119,12 @@ modules to an `MMF_Player` (D-010). Grabbit was removed — don't assume it exis
 
 ## Docs (part of doing the work, not an afterthought)
 
-One job per file (D-024). There is **no `BUGS.md`**: bugs are `- [ ] B-xxx` lines in `TODO.md`, done
-when their test passes.
+Routing, budgets and the writing rules are defined **once**, in
+[`docs/README.md`](docs/README.md). `DocBudgetTests` is the gate: a file over its budget is compacted
+**before** code. Measured numbers, gate outputs, test counts, CLI transcripts and probe values go to the
+commit body and to `TODO.md` status lines — never into a doc.
 
-- **`docs/TODO.md`** — the work list: bugs, now, phases, done. Mark done on the date the test passed.
-- **`docs/DECISIONS.md`** — §Current structure (folders, namespaces, assemblies, who talks to what,
-  scene contents) + the append-only decision log with the *why*. Supersede, never rewrite.
-- **`docs/ARCHITECTURE.md`** — how to build: layers, dependency direction, tick ownership, Unity
-  boundary, checklist for a new system. No rationale, no history.
-- **`docs/GOTCHAS.md`** — traps we fell into, each with a one-line Rule. Append the moment we get burned.
-- **`docs/STYLE.md`** — conventions. **`docs/README.md`** — the index.
-- Routing: work/bug → TODO; call → DECISIONS; shape → ARCHITECTURE; burned → GOTCHAS; convention → STYLE.
-
-Workflow: skim `GOTCHAS.md` + `TODO.md` before starting; `ARCHITECTURE.md` before building anything;
-`DECISIONS.md` when a choice looks strange. After finishing, update the file that changed reality.
+Workflow: skim `GOTCHAS.md` + `TODO.md` before starting, `ARCHITECTURE.md` before building anything,
+`DECISIONS.md` §Current structure when a choice looks strange; after finishing, update the file that
+changed reality. There is no `BUGS.md`: bugs are `- [ ] B-xxx` lines in `TODO.md`, done when their test
+passes.

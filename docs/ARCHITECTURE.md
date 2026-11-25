@@ -87,68 +87,77 @@ Domain must never reference Application, Adapters, or Drivers.
 
 ## Project-Specific Structure
 
-> This section is **mutable**.  
-> Update it as the concrete architecture takes shape.  
-> Describe current major classes, their layers, ownership, and important dependencies here.
+> **Mutable.** Update it in the same change that moves a layer; never edit the READ-ONLY rules. The
+> file-by-file map, the scene contents and the rationale live in `DECISIONS.md`, work in `TODO.md`, traps
+> in `GOTCHAS.md` (D-024). **Never** measured numbers, gate outputs, test counts, CLI commands, coordinates.
 
-### Layers & Namespaces
+### Layers & namespaces
 
 | Layer | Namespace | Folder | Role |
-|----------------|----------------------------------------|-------------------------------|------|
+|---|---|---|---|
 | Composition | `Flame_n_Blame_Challenge` | `Assets/_Core/Scripts/` | `Bootstrapper`, `GameUpdater` — build the graph, own the tick |
-| Use Cases | `Flame_n_Blame_Challenge.UseCases` | `Scripts/UseCases/` | session orchestration (`GamePlaySession`) |
-| Domain | `Flame_n_Blame_Challenge.Domain` | `Scripts/Domain/` | pure game state & rules |
-| Adapters | `Flame_n_Blame_Challenge.Adapters` | `Scripts/InterfaceAdapters/` | ports (`IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPhysicsSettings`, `IControlSettings`) + Unity implementations |
+| Use Cases | `.UseCases` | `Scripts/UseCases/` | session orchestration (`GamePlaySession`) |
+| Domain | `.Domain` | `Scripts/Domain/` | pure game state & rules |
+| Adapters | `.Adapters` | `Scripts/InterfaceAdapters/` | ports, Unity-side implementations, authored ScriptableObjects |
 
-**Dependency direction:** Composition → UseCases → Domain; all three may depend on Adapter **ports**,
-and only Composition instantiates concrete Adapter implementations. `Scripts/UseCases/` is the chosen
-folder (D-012, D-014); `Scripts/Application/` is deleted — one folder for one layer.
-The current file-by-file map is `docs/DECISIONS.md` §Current structure.
+Dependencies: Composition → UseCases → Domain; all three may depend on Adapter **ports**, and only
+Composition instantiates concrete Adapter implementations. `Scripts/Application/` was deleted — one folder
+per layer (D-012, D-014).
 
-### The Player, as built
+### The push rule, structurally
 
-| Type | Layer | What it owns |
-|------|-------|--------------|
-| `Player` | Domain | composition + forwarding only: the three parts, `Velocity` for the shell, `ReceivePush`, `ReportContact`. **No rules, no `_input`/`_settings`** (D-021) |
-| `PlayerMotion` | Domain | **Velocity.** `ControlVelocity` (input, never touched by a push) and `PushVelocity` (shove momentum) are **horizontal only**; `VerticalVelocity` is gravity + the vertical part of every launch; the active push list (capacity 8); the jump gate (D-021, D-039) — **press fact + grounded**, two conditions and **zero stored jump state**: the press is the shell's one-tick `WasPressedThisFrame`, so a held key cannot fire twice and a press made in flight is never remembered; the preset launches **vertically** and `JumpCarry × ControlVelocity` is carried into the push channel (D-034); `GroundFriction` (the ground's **one** rate, D-038) and `AirDrag` come through `IPhysicsSettings`, the three speeds and the airborne ramp through `IControlSettings` (D-037); the ground is a **normal force** — it absorbs downward vertical **iff** the live vertical force ≤ `Mass·Gravity`, so a launch above weight survives the ground it stands on (D-030); `IsLaunched => VerticalVelocity > 0`; `ApplyPush(preset, direction)` — **one** entry point, the shape is the DTO's type, so the entry point cannot branch (D-033); `LiveVerticalForce()` is **private** (its only reader is the ground's rule, D-033); **contact decides control's authority over momentum** — in the air `ControlVelocity`'s component **along** a shove is removed every tick (steering across keeps `PlayerSpeedInAir`, D-036); on the ground the ONE rate ramps the run to `DesiredVelocity`, brings the control to rest when the input is released, and eats the shove in every direction — the run against a shove reaches full speed, and running with a shove decays at the same rate (D-038). Step order: contact → jump → gravity → pushes → control → drag → cap → sum |
-| `PlayerMovement` | Domain | input + look → `DesiredVelocity`; reduced `PlayerSpeedInAir`; exposes the jump **request** as this tick's press fact only (D-021, D-039) |
-| `PlayerLookRotator` | Domain | yaw/pitch from the look delta → `Forward`/`Right` |
-| `PushPresetData` (abstract) + `ImpulsePresetData` / `SustainedPresetData` + `PushType` | Domain | the base holds `Type` **only** — the key is the whole authored identity, no label (D-032) — and implements `IPushPreset {Type, Force, IsImpulse}`, the three facts a ticking push reads (D-033); the **concrete type is the force shape** — Impulse: `Force` in N·s, no Duration and no curve fields; Sustained: `Force` in N + scalar `Curve` (envelope 0..1) + `Duration` (ends the **adding**, never the velocity) (D-028's rule, restored by D-031). `PushType` lists the **four sources that exist** (D-033). The list is `[SerializeField, SerializeReference]`, so the Inspector's type dropdown creates the entry, and `[Tooltip]` states the unit. Read through `IPushPresets.PresetOf(PushType)` (`Push Presets.asset`) |
-| `PlayerMotor` | Adapters (shell) | `Move(Velocity * dt)`, yaw/pitch onto transforms, report `isGrounded` + the **contact normal** from `OnControllerColliderHit` (Unity fires it inside `Move`), forward `ApplyForce(preset, direction)` → `Player.ReceivePush`. **No rules** |
-| `HydrantPush` | Adapters (shell) | trigger → `ApplyForce(_presets.PresetOf(_pushType), _pushDirection.forward)` — direction is the **source's Vector3**, never a rotation and never the player's facing (G-018). Reactive: the Unity trigger event is the fact, no world query (ARCHITECTURE §Reactive first) |
-| `PushPresets` | Adapters (ScriptableObject) | `[SerializeReference] PushPresetData[] _presets` — one authored list, `IPushPresets.PresetOf(PushType)` linear lookup on fire, never per tick (D-029). Unity's Inspector draws a type dropdown per entry and shows only the fields the chosen DTO has, so field visibility needs no flag and no drawer (G-021); the runtime branch is `IsImpulse` |
-| `GameSettings` + `PhysicsSettings` + `PlayerControlSettings` (ScriptableObjects) | Adapters | the authored facade, split by subject (D-037): `Game Settings.asset` is **two object references** with no numbers of its own; `Physics Settings.asset` owns body, contact, damping, the push cap and the jump carry (read through `IPhysicsSettings`), `Player Control Settings.asset` owns the three speeds, the airborne ramp and the look (through `IControlSettings`). No consumer sees a number it does not read. `Bootstrapper` hands `Physics`/`Control` to the session at composition; a session rule joins `GameSettings` only with its reader (D-033). Each asset's Inspector is grouped by D-035 |
+Why: D-016, D-027, D-028, D-030, D-031, D-034, D-038, D-039. Traps: G-012, G-016, G-018, G-020, G-021, G-023.
 
-**The push rule, structurally** (the *why* is D-016, D-020, D-021, D-027, D-028, D-029, D-030, D-031, D-032,
-D-033; the
-traps are G-012, G-016, G-018, G-020, G-021): a push enters only through
-`Player.ReceivePush(preset, sourceDirection)`; the **type of the DTO** is the authored rule (an Impulse
-lands in one tick, a Sustained accumulates `Force * Curve / Mass`
-over `Duration`); **contact** absorbs momentum — the ground absorbs vertical **when it points down and the
-live vertical force does not exceed weight** (a normal force can push only up), a wall absorbs the push
-component **along its normal** and keeps the parallel one — decay is the ground's **one** rate
-(`GroundFriction`, D-038) grounded and `AirDrag` airborne, the horizontal channel saturates at `MaxPushSpeed`. A launch that lifts needs `Force > Mass·Gravity`
-(80 · 19.62 = 1569 N; a 45° nozzle ≈ 2220 N). A shell that evaluates curves, sums forces, or zeroes
-velocity on a timer has business rules in it. A source decides **whether** to fire; `PlayerMotion` decides
-what a fired push does.
+- A push enters only through `Player.ReceivePush(preset, sourceDirection)`. The DTO's **type** is the force shape (Impulse lands in one tick; Sustained accumulates `Force·Curve/Mass` over `Duration`), so the entry point cannot branch.
+- Channels: `ControlVelocity` (input) and `PushVelocity` (shove) are **horizontal**, `VerticalVelocity`
+  owns gravity and every launch. Contact absorbs momentum: the ground absorbs vertical **iff** the live
+  vertical force ≤ `Mass·Gravity`, a wall absorbs **along its normal** and keeps the parallel part.
+- Decay: the ground's **one** rate `GroundFriction` grounded, `AirDrag` airborne, horizontal saturated at
+  `MaxPushSpeed`; `Duration` ends the *adding*, never the velocity; a launch that lifts needs
+  `Force > Mass·Gravity`.
+- A source decides **whether** to fire, `PlayerMotion` what a fired push does; the jump gate is two
+  conditions (press fact + grounded) with zero stored jump state. A `UseCases` source class is written
+  where a source has scenario logic (aim, hit test, interval), not for a gate. A shell that evaluates
+  curves, sums forces, or zeroes velocity on a timer has business rules in it.
+
+### The fire rule, structurally
+
+Why: D-040…D-048. Traps: G-026, G-027, G-031, G-034, G-035, G-036, G-040.
+
+- One axis: `IgnitionStrength` 0..1 + `CurrentDurability` (HP), **one heat door**
+  `AffectIgnitionStrength(amount)`: the source integrates the amount, `dt` never enters the domain,
+  `FireResistance` scales it inside — one number makes a body hard to ignite **and** hard to douse.
+  `MaxBurnIntensity` drives the ramp, the neighbour heat and the HP drain; burn length is its ratio to durability.
+- A stream douses only when `stream × FireResistance > MaxBurnIntensity` (G-034); the amount is
+  **negative** and the sign is the source's (G-031), and the sign picks the cosmetic: a positive contact
+  writes the char front once, on the first ignition; a negative contact plays the splash there (G-035, G-036).
+- The shell **copies** and decides nothing: `FireLevel` → `_Fire`, `Charredness` → `_Burn` (the shader's
+  char axis is `_Burn`), the origin, the extent and its own authored look numbers, through a
+  `MaterialPropertyBlock` on the **shared** material — 24 objects, one shader variant. Particle rates are
+  the shell's numbers; a domain number never sets a particle speed.
+- Spread is a **cursor, not a sweep**: `n = ceil(count/4)` objects per frame, each fed `Σ influence ×
+  elapsed_of_that_object`, so the result is `n`-independent. The shader stays as accepted (D-041, D-042):
+  quantized facets, hard `step` boundaries, no mask texture, no soft particles.
+- The **one** puff pool is injected at composition; a per-prop pool multiplies the budget (G-040). A shell
+  that grows fire, decays heat on a timer, counts pulses, or picks the sign of a stream has business
+  rules in it.
 
 ### Who owns the tick
 
-- Exactly one Unity `Update()` — on `Bootstrapper` → `GameUpdater.Update(time, deltaTime)` → every
+- Exactly one Unity `Update()` — `Bootstrapper` → `GameUpdater.Update(time, deltaTime)` → every
   registered `IUpdatable` **in registration order**, which **is** the execution-order contract (never
   Script Execution Order). Safe removal during iteration (staged queue + swap-remove).
-- Registration order today, in `GamePlaySession.StartGamePlay()`: `PlayerInputMain` → `Player` →
-  `PlayerMotor` — the shell runs **after** the domain, so it consumes what the domain decided this tick.
-- **No fixed step** (D-018): integration is dt-driven; frame-rate independence is asserted by tests at
-  1/60, 1/30, 1/120 (within 5%). Re-opens only as a new decision.
+- Today's order in `GamePlaySession.StartGamePlay()`: `PlayerInputMain → Player → PlayerMotor →
+  FireSpreadSystem → BurnableShell[]` — pools constructed first, shells before the spread system sees
+  them; a shell runs **after** the domain, so it consumes what the domain decided this tick (D-013).
+- **No fixed step** (D-018): integration is dt-driven; frame-rate independence is asserted at `dt = 1/60, 1/30, 1/120` within 5%. Re-opens only as a new decision.
 
 ### Unity boundary
 
-- **Default:** plain C# classes. MonoBehaviours only when Unity requires them (physics/trigger
-  callbacks, `Animator`, authored prefab references) and only as **thin shells** that forward
-  events/data into plain classes.
-- Authored numbers live on shells/ScriptableObjects and are copied into plain data objects passed to
-  constructors. Domain never reads the Inspector and never does `GetComponent` in a hot path.
+- **Default:** plain C# classes. MonoBehaviours only when Unity requires them (physics/trigger callbacks,
+  `Animator`, authored prefab references) and only as **thin shells** forwarding events/data inward.
+- Authored numbers live on shells/ScriptableObjects, copied into plain data objects passed to
+  constructors. Domain never reads the Inspector, never `GetComponent` in a hot path.
 
 ### Reactive first
 
@@ -163,25 +172,13 @@ what a fired push does.
 - After a fix, look at it from the outside: does it make the mechanic honest, or does it compensate a
   symptom? Compensating a symptom is a **crutch** — a rule that guards a sign, a timer that hides a
   missing fact, a guard that fires because the real rule is absent. If the fix is a crutch, stop patching
-  and design the mechanic so the rule is the physical truth (the sign is not the rule; the force behind
-  the sign is).
-- A crutch in **domain** logic is allowed only in quick / temporary / test sketches, with a `TODO.md`
-  line marked *fix later*.
-- **Numbers are tuned by play, not by test sweeps.** A preset's Force, curve and Duration are chosen by the
-  user playing the mechanic (the `[v]` log is read after the run, then removed); the standing gate is the one
-  suite run, never a search over parameter values — a sweep spends the time on the code's fit, not on the
-  feel, and it cannot say what a jump should feel like (D-032).
-- In tertiary, non-influencing adapters and above, a crutch is allowed only where what it touches is not
-  critical (cosmetics, feel, a debug path).
-
-### Current reality vs decided
-
-| Status | Items |
-|-----------------|-------|
-| **Exists + verified** | The tree compiles (B-002 `Verified` 2026-11-20, CLI gate). The test suite runs as **EditMode** on code (`unity cmd test run --mode editor`): 19 tests, 19 pass (B-003 `Verified` 2026-11-20, D-028/D-029/D-030). `Bootstrapper` is in `FnB_Gameplay.unity` on `=== System`, so the tick runs; `HydrantPush` and `Bootstrapper` are wired to `Push Presets.asset` (`scene save` done), the nozzle's `PushDirection` is pitched −45°. |
-| **Exists, not verified** | The push model's *behaviour in the scene*: the player spawns at the prefab's origin, not at `/=== World/Player Spawn Point`, so it never reaches the hydrant trigger (B-004). The vertical launch rule (D-030) is code-verified only — no editor feel check yet (TODO, checks a–e), no web build (D-019). |
-| **Decided, not built** | `PushDirector` + the four push UseCases, with the jump gate leaving `PlayerMotion` (D-027's second half); spray shove with the 0.1 s flat-curve refresh (phase 2), hydrant burst tuning, control-loss lockout (cut by D-016), fire/burnable systems, WebGL budgets for fire/particles/physics. Anisotropic ground friction is now **possible** — the contact normal is reported (D-027). |
-| **Still scaffolding** | `Player.prefab` carries a non-kinematic Rigidbody beside the `CharacterController`; `EditorBuildSettings` lists the deleted `SampleScene.unity` (G-003); WebGL has no pipeline (B-001). |
+  and design the mechanic so the rule is the physical truth (the sign is not the rule; the force is).
+- A crutch in **domain** logic is allowed only in quick / temporary / test sketches, with a `TODO.md` line
+  marked *fix later*; in tertiary, non-influencing adapters, only where what it touches is not critical
+  (cosmetics, feel, a debug path).
+- **Numbers are tuned by play, not by test sweeps** (D-032): the standing gate is the one suite run,
+  never a search over parameter values; a preset's Force, curve and Duration are chosen by the user
+  playing.
 
 ### Adding a new system — checklist
 
@@ -191,10 +188,8 @@ what a fired push does.
 4. Author tunable numbers on a shell/ScriptableObject → pass as plain data.
 5. Keep MonoBehaviours thin; no rules in them.
 6. Write the perf budget **before** code (D-007), then the test, then the code.
-
-### Notes
-
-- Update this section when the shape changes; never edit the READ-ONLY RULES above.
-- This file states **how to build**. Rationale and history live in DECISIONS.md; state of the files in
-  DECISIONS.md §Current structure; work in TODO.md; traps in GOTCHAS.md (D-024).
+7. **KISS** (D-042, the user's rule): the **shortest** mechanism that gives the feel is the one to
+   write — a knob, a branch, a parameter, an extra pass is added only when **the feel or the budget asks
+   for it by name**, not because it is tunable. Write the simple version, play, complicate only the exact
+   spot the eyes complained about; several variants are the budget for a first draft, not for every part.
 
