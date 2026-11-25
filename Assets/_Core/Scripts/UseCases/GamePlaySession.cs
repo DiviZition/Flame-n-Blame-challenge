@@ -1,7 +1,6 @@
 using Flame_n_Blame_Challenge.Adapters;
 using Flame_n_Blame_Challenge.Domain;
 using System;
-using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.UseCases
 {

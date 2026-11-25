@@ -18,7 +18,7 @@ namespace Flame_n_Blame_Challenge.Adapters
 
         public bool isSprinting => _player?.Movement.IsSprinting ?? false;
         public bool IsGrounded => _player?.Movement.IsGrounded ?? false;
-        public Vector3 MoveDirection => _player?.Movement.DesiredVelocity.normalized ?? Vector3.zero;
+        public Vector2 InputDirection => _player?.RawInputDirection ?? Vector3.zero;
 
         private Player _player;
         private Vector3 _contactNormal;
@@ -29,8 +29,6 @@ namespace Flame_n_Blame_Challenge.Adapters
         {
             if (_player == null)
                 return;
-
-            Debug.Log($"MoveDirection: {_player.Movement.DesiredVelocity}");
 
             ApplyLook();
 

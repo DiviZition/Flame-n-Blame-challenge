@@ -12,6 +12,7 @@ namespace Flame_n_Blame_Challenge
         [SerializeField] private GameSettings _gameSettingsConfig;
         [SerializeField] private ResourcesProvider _resourcesConfig;
         [SerializeField] private PushPresets _pushPresetsConfig;
+        [SerializeField] private SpawnPoints _spawnPoints;
 
         private Updater _gameUpdater;
         private IPlayerInput _inputs;
@@ -24,9 +25,15 @@ namespace Flame_n_Blame_Challenge
             _gameUpdater = new Updater();
 
             CurrentGameSession = new GamePlaySession(
-                _gameUpdater, _inputs, _gameSettingsConfig, _pushPresetsConfig, new ResourceSpawner(_resourcesConfig));
+                _gameUpdater, 
+                _inputs, 
+                _gameSettingsConfig, 
+                _pushPresetsConfig, 
+                new ResourceSpawner(_resourcesConfig, _spawnPoints));
 
             CurrentGameSession.StartGamePlay();
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
         }
 
         private void Update()

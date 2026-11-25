@@ -14,7 +14,9 @@ namespace Flame_n_Blame_Challenge.Domain
         public readonly PlayerMovement Movement;
         public readonly PlayerMotion Motion;
 
+        private readonly IPlayerInput _input;
         public Vector3 Velocity => Motion.Velocity;
+        public Vector2 RawInputDirection => _input.InputDirection;
 
         public Player(IPlayerInput input, IPhysicsSettings physics, IControlSettings control,
             IPushPresets presets)
@@ -22,6 +24,7 @@ namespace Flame_n_Blame_Challenge.Domain
             LookRotation = new PlayerLookRotator(input, control);
             Movement = new PlayerMovement(input, control, LookRotation);
             Motion = new PlayerMotion(Movement, physics, control, presets);
+            _input = input;
         }
 
         /// Order within the composite: look, then the intent that reads it, then the velocity that reads

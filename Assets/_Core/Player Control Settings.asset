@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 50697db9bfdec654b9d4332cb1b25d69, type: 3}
   m_Name: Player Control Settings
   m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.PlayerControlSettings
-  <PlayerSpeedBase>k__BackingField: 5
-  <PlayerSpeedSprint>k__BackingField: 8
+  <PlayerSpeedBase>k__BackingField: 3
+  <PlayerSpeedSprint>k__BackingField: 6
   <PlayerSpeedInAir>k__BackingField: 2
   <AirAcceleration>k__BackingField: 6
   <LookSensitivity>k__BackingField: 0.17
