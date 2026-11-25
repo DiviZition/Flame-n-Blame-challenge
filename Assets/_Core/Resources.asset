@@ -13,3 +13,4 @@ MonoBehaviour:
   m_Name: Resources
   m_EditorClassIdentifier: FlameNBlame-asmdf::Flame_n_Blame_Challenge.Adapters.ResourcesProvider
   <PlayerMotor>k__BackingField: {fileID: 1848458353417603451, guid: f427cfca911251e40a73f8e0ba3949d4, type: 3}
+  <PuffPull>k__BackingField: {fileID: 4044409406101251574, guid: f2d54a4455f36bd4597d15f5801a5317, type: 3}

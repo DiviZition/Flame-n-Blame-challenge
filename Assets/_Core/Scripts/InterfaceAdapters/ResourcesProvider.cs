@@ -8,5 +8,6 @@ namespace Flame_n_Blame_Challenge.Adapters
     public class ResourcesProvider : ScriptableObject
     {
         [field: SerializeField] public PlayerMotor PlayerMotor { get; private set; }
+        [field: SerializeField] public SmokePuffPool PuffPull { get; private set; }
     }
 }

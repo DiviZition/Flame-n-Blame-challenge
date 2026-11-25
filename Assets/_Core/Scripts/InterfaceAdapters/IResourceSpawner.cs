@@ -5,6 +5,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     public interface IResourceSpawner
     {
         PlayerMotor SpawnPlayer();
+        SmokePuffPool SpawnPuffPool();
         // add more only when you actually need them
     }
 }

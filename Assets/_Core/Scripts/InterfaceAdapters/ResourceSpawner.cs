@@ -8,11 +8,9 @@ namespace Flame_n_Blame_Challenge.Adapters
     {
         private readonly ResourcesProvider _resourcesProvider;
 
-        public ResourceSpawner(ResourcesProvider resourcesProvider)
-        {
-            _resourcesProvider = resourcesProvider;
-        }
+        public ResourceSpawner(ResourcesProvider resourcesProvider) => _resourcesProvider = resourcesProvider;
 
         public PlayerMotor SpawnPlayer() => Object.Instantiate(_resourcesProvider.PlayerMotor);
+        public SmokePuffPool SpawnPuffPool() => Object.Instantiate(_resourcesProvider.PuffPull);
     }
 }

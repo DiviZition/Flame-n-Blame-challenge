@@ -24,13 +24,13 @@ as **EditMode** on code (D-026).
 **Authored assets:** `Game Settings.asset` (two references, no numbers), `Physics Settings.asset` (mass, gravity, ground rate, drags, cap, jump carry), `Player Control Settings.asset` (speeds, accelerations, look), `Push Presets.asset` (`[SerializeReference]` list keyed by `PushType`),
 `Resources.asset`.
 
-**Who talks to what:** `Bootstrapper` (the one `Update()`) → `GameUpdater` → registered `IUpdatable` in registration order `PlayerInputMain → Player → PlayerMotor → FireSpreadSystem → BurnableShell[]` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
+**Who talks to what:** `Bootstrapper` (the one `Update()`) → `Updater` → registered `IUpdatable` in registration order `PlayerInputMain → Player → PlayerMotor → BurnableObject + BurnableShell pairs → FireSpreadSystem` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
 IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`, exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A
-source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` copies `FireLevel` and `Charredness` into the shared material and reads the sign of `ApplyStream(amount, contact)` (D-046); the **one** `SmokePuffPool` is handed in by `Bootstrapper`, never scanned for
-(D-048, G-040). The session never scans the scene for a service it can be given.
+source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, writes `_BurnOrigin` and `_BurnExtent` once at the ignition, drives the fire and smoke particle chains (D-051), and reads
+the sign of `ApplyStream(amount, contact)` (D-046). The **one** `SmokePuffPool` and the `PlayerMotor` arrive from `Resources.asset` through `ResourceSpawner`, injected into the session and its shells (D-048, G-040).
 
-**Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` + `Puff Pool` + Main Camera (CinemachineBrain); `=== World` → light + `GrayBox Level` (Ground, `Hydrant` with `HydrantPush` and `PushDirection` pitched −45°, `Burnable Box`, `Slope`, `Reference Cube`, `Player Spawn
-Point`). **No `Player` GameObject, so `PlayerMotor` is attached to nothing (B-004); no prop carries a `BurnableShell`, so nothing burns; the scene is not in Build Settings (G-003).**
+**Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` + `BenchMark` + Main Camera (CinemachineBrain); `=== World` → light + `GrayBox Level` (Ground, `Hydrant` with `HydrantPush` and `PushDirection` pitched −45°, `Slope`, `Reference Cube`), `Player Spawn Point`; three root
+`Burnable` props carry `BurnableShell` with fire/smoke particle chains, and `BenchMark` sprays them. **The `PlayerMotor` clone is spawned at the prefab's own origin, not at the spawn point (B-004); the scene is not in Build Settings (G-003).**
 
 **Strays:** `Player.cs` at repo root (untracked copy of `Domain/Player.cs`) and `X Bot@Falling.fbx` in the code folder — housekeeping (TODO).
 
@@ -323,3 +323,13 @@ Point`). **No `Player` GameObject, so `PlayerMotor` is attached to nothing (B-00
   absorption by normal, the ground/air rates, the drag equilibrium, the cap, direction from the source, frame-rate independence, the no-allocation budget, the degenerate-data case.
 - **Why:** Almost half the code was test code, and the deleted tests asserted rules that had not moved for days — the cost was maintaining them, not running them: the suite takes a fraction of a second. Play is the gate that judges feel, which no test can, so a suite that blocks delivery spends the
   time it was written to save. One rule per test is the shape that stays small enough to keep.
+
+## D-051: The burnable look runs on the ignition, not on heat
+- **2026-11-25 · Accepted · the user's play verdict · D-045 and D-046 confirmed, the fire axis and the particle rule added**
+- **Decision:** Every frame the shell copies `Charredness` → `_Burn` and `FireLevel` → `_Fire`. `_BurnOrigin` and `_BurnExtent` — the farthest mesh corner from the origin, so `Burn` 1 covers the mesh at any object size, and the mesh lives in the shell, not in the shader — travel **once**, on the
+  first frame `FireLevel` is above 0, from the last fire contact. Fire particles and the shader fire run on `FireLevel`, the band above the threshold; smoke runs on the full `IgnitionStrength` axis and drops to 0 when the body
+  burns out. The particle roots sit at the burn point, scale from `_particleMinScale` to `_particleMaxScale` and move to the mesh centre on the `Charredness` axis, whose 0 is the ignition; every transform under a root is
+  written, so a nested sub-emitter follows its parent, and a chain authored with a disabled root is switched on.
+- **Why:** Flame, fire particles and the char front must all begin the moment the body ignites, not the moment it gets warm, and smoke is the warm-up: the fire axis is the band above the threshold, so one read gives the
+  remap. A doused object keeps its char and its place — the douse stops the burn, it does not undo it, so nothing moves back. A nested sub-emitter is authored as a child, so writing the whole chain is what keeps it attached.
+

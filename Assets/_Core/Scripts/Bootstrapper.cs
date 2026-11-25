@@ -13,7 +13,7 @@ namespace Flame_n_Blame_Challenge
         [SerializeField] private ResourcesProvider _resourcesConfig;
         [SerializeField] private PushPresets _pushPresetsConfig;
 
-        private GameUpdater _gameUpdater;
+        private Updater _gameUpdater;
         private IPlayerInput _inputs;
 
         public GamePlaySession CurrentGameSession { get; private set; }
@@ -21,7 +21,7 @@ namespace Flame_n_Blame_Challenge
         private void Start()
         {
             _inputs = new PlayerInputMain();
-            _gameUpdater = new GameUpdater();
+            _gameUpdater = new Updater();
 
             CurrentGameSession = new GamePlaySession(
                 _gameUpdater, _inputs, _gameSettingsConfig, _pushPresetsConfig, new ResourceSpawner(_resourcesConfig));
