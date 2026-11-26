@@ -20,6 +20,9 @@ public class BenchMark : MonoBehaviour
 
     private void Update()
     {
+        if (_transform == null || _transform2 == null)
+            return;
+
         _transform2.position = _transform.position;
     }
 

@@ -12,8 +12,8 @@
         {
             Slot = item;
 
-            float tmeTouse = item == null ? item.EquipTime : 0;
-            SetTimeToUse(tmeTouse);
+            float timeTouse = item != null ? item.EquipTime : 0;
+            SetTimeToUse(timeTouse);
         }
 
         public void DecreaseTimer(float value) => SetTimeToUse(TimeToUse - value);
