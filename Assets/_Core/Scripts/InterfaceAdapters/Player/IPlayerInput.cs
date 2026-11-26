@@ -14,8 +14,8 @@ namespace Flame_n_Blame_Challenge.Adapters
         /// (D-039: the gate eats the press the tick it is seen).
         public bool JumpPressed { get; }
 
-        public event Action<bool> OnInteractButton;
-        public event Action<bool> OnUseButton;
-        public event Action<bool> OnThrowButton;
+        public bool UseRightItemPressed { get; }
+        public bool UseLeftItemPressed { get; }
+        public bool ThrowButtonPressed { get; }
     }
 }

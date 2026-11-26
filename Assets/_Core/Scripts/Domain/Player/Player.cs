@@ -13,6 +13,7 @@ namespace Flame_n_Blame_Challenge.Domain
         public readonly PlayerLookRotator LookRotation;
         public readonly PlayerMovement Movement;
         public readonly PlayerMotion Motion;
+        public readonly PlayerItemsHandler ItemsHandler;
 
         private readonly IPlayerInput _input;
         public Vector3 Velocity => Motion.Velocity;
@@ -21,10 +22,13 @@ namespace Flame_n_Blame_Challenge.Domain
         public Player(IPlayerInput input, IPhysicsSettings physics, IControlSettings control,
             IPushPresets presets)
         {
+            _input = input;
+
             LookRotation = new PlayerLookRotator(input, control);
             Movement = new PlayerMovement(input, control, LookRotation);
             Motion = new PlayerMotion(Movement, physics, control, presets);
-            _input = input;
+
+            ItemsHandler = new PlayerItemsHandler(_input);
         }
 
         /// Order within the composite: look, then the intent that reads it, then the velocity that reads
@@ -35,6 +39,7 @@ namespace Flame_n_Blame_Challenge.Domain
             LookRotation.UpdateLogic(time, deltaTime);
             Movement.UpdateLogic(time, deltaTime);
             Motion.UpdateLogic(time, deltaTime);
+            ItemsHandler.UpdateLogic(time, deltaTime);
         }
 
         /// Every push source reaches the player through this one entry point and nothing else: the hydrant,
