@@ -95,7 +95,7 @@ Domain must never reference Application, Adapters, or Drivers.
 
 | Layer | Namespace | Folder | Role |
 |---|---|---|---|
-| Composition | `Flame_n_Blame_Challenge` | `Assets/_Core/Scripts/` | `Bootstrapper`, `GameUpdater` — build the graph, own the tick |
+| Composition | `Flame_n_Blame_Challenge` | `Assets/_Core/Scripts/` | `Bootstrapper`, `GameUpdater` — build the graph, own the tick, and from the boot scene own the load → session lifetime (D-052) |
 | Use Cases | `.UseCases` | `Scripts/UseCases/` | session orchestration (`GamePlaySession`) |
 | Domain | `.Domain` | `Scripts/Domain/` | pure game state & rules |
 | Adapters | `.Adapters` | `Scripts/InterfaceAdapters/` | ports, Unity-side implementations, authored ScriptableObjects |

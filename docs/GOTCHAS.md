@@ -15,7 +15,7 @@ change an ID; a superseded rule is named in the title, its Rule compressed, neve
 ## G-002: `rootNamespace` with hyphens (Resolved 2026-11-17)
 - **Rule:** Check `rootNamespace` before the first script: a hyphen is not a C# identifier, so every editor-generated file silently fails to compile. Let the asmdef carry the convention (D-014).
 
-## G-003: Build Settings point at a scene that doesn't exist (Open)
+## G-003: Build Settings point at a scene that doesn't exist (Resolved 2026-11-26)
 - **Rule:** Add the real scene to Build Settings. On WebGL it bites harder: an empty scene list builds a page that loads and shows nothing (D-007).
 
 ## G-004: Feel's skills are not advertised to the agent (Open)

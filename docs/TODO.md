@@ -67,7 +67,7 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [ ] One carry slot: pick up / hold / activate a single item
 - [ ] Sound for ignite / burn / extinguish / collapse (no VFX sound yet)
 - [ ] Location: a house full of burnables + a street with the hydrant; music + ambience
-- [ ] Menu with a Play button; load/unload of the gameplay scene
+- [ ] Menu + Play button, restart; [x] launch: the boot scene loads gameplay, session built on the load (D-052)
 - [ ] Game state control: menu / in-game / pause
 - [ ] Goal: extinguish the house and walk out (scoring stays deferred, D-008)
 

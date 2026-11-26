@@ -1,6 +1,6 @@
 # DECISIONS.md — Decision Log
 
-Two jobs: §Current structure (the state map, rewritten freely) and the log D-001…D-048 — the *why* of non-obvious calls, so they are not re-litigated.
+Two jobs: §Current structure (the state map, rewritten freely) and the log D-001…D-052 — the *why* of non-obvious calls, so they are not re-litigated.
 
 **Rules:** one entry = `## D-xxx: title` + `**Date · Status · supersede**` + `Decision:` + `Why:`, **≤ 10 lines per entry, ≤ 400 for the file, ≤ 320 chars per line.** Log only the non-obvious: obvious, reversible, no system impact → not logged. **Entries are editable** — Decision and Why state the
 rule as it stands today, history is in git (`git log --follow docs/DECISIONS.md`), a supersede is a name in the Status line, never a retelling. **Never in this file:** measured numbers, gate outputs, test counts, file lists, CLI commands, scene coordinates, probe values — they go to the commit body
@@ -25,13 +25,16 @@ Inside `Domain/` and `InterfaceAdapters/`, entity subfolders `Player/`, `Burnabl
 **Authored assets:** `Game Settings.asset` (two references, no numbers), `Physics Settings.asset` (mass, gravity, ground rate, drags, cap, jump carry), `Player Control Settings.asset` (speeds, accelerations, look), `Push Presets.asset` (`[SerializeReference]` list keyed by `PushType`),
 `Resources.asset`.
 
-**Who talks to what:** `Bootstrapper` (the one `Update()`) → `Updater` → registered `IUpdatable` in registration order `PlayerInputMain → Player → PlayerMotor → BurnableObject + BurnableShell pairs → FireSpreadSystem` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
+**Who talks to what:** `Bootstrapper` — in the boot scene, `DontDestroyOnLoad`, the one `Update()` — loads the gameplay scene and builds the session when that scene reports ready, resolving `SpawnPoints` once there (D-052) → `Updater` → registered `IUpdatable` in registration order
+`PlayerInputMain → Player → PlayerMotor → BurnableObject + BurnableShell pairs → FireSpreadSystem` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
 IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`, exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A
 source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, writes `_BurnOrigin` and `_BurnExtent` once at the ignition, drives the fire and smoke particle chains (D-051), and reads
 the sign of `ApplyStream(amount, contact)` (D-046). The **one** `SmokePuffPool` and the `PlayerMotor` arrive from `Resources.asset` through `ResourceSpawner`, injected into the session and its shells (D-048, G-040).
 
-**Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `Bootstrapper` + `BenchMark` + Main Camera (CinemachineBrain); `=== World` → light + `GrayBox Level` (Ground, `Hydrant` with `HydrantPush` and `PushDirection` pitched −45°, `Slope`, `Reference Cube`), `Player Spawn Point`; three root
-`Burnable` props carry `BurnableShell` with fire/smoke particle chains, and `BenchMark` sprays them. **The `PlayerMotor` clone is spawned at the prefab's own origin, not at the spawn point (B-004); the scene is not in Build Settings (G-003).**
+**Boot scene `Assets/_Core/Scenes/FnB_Boot.unity`:** the root `Bootstrapper` alone — no camera, no light. It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is gone (G-003 closed).
+
+**Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `BenchMark` + Main Camera (CinemachineBrain); `=== World` → light + `GrayBox Level` (Ground, `Hydrant` with `HydrantPush` and `PushDirection` pitched −45°, `Slope`, `Reference Cube`), `++ Spawn Points` (`SpawnPoints` +
+`Player Spawn Point`); six root `Burnable` props carry `BurnableShell` with fire/smoke particle chains, and `BenchMark` sprays them. **The `PlayerMotor` clone is spawned at the prefab's own origin, not at the spawn point (B-004).**
 
 **Strays:** `Player.cs` at repo root (untracked copy of `Domain/Player.cs`) and `X Bot@Falling.fbx` in the code folder — housekeeping (TODO).
 
@@ -333,4 +336,12 @@ the sign of `ApplyStream(amount, contact)` (D-046). The **one** `SmokePuffPool` 
   written, so a nested sub-emitter follows its parent, and a chain authored with a disabled root is switched on.
 - **Why:** Flame, fire particles and the char front must all begin the moment the body ignites, not the moment it gets warm, and smoke is the warm-up: the fire axis is the band above the threshold, so one read gives the
   remap. A doused object keeps its char and its place — the douse stops the burn, it does not undo it, so nothing moves back. A nested sub-emitter is authored as a child, so writing the whole chain is what keeps it attached.
+
+## D-052: The composition root launches the game from a boot scene that survives the load
+- **2026-11-26 · Accepted**
+- **Decision:** `Bootstrapper` lives in an empty boot scene and is `DontDestroyOnLoad`; it requests the gameplay scene load itself and builds the session on `sceneLoaded`, resolving `SpawnPoints` there once. The gameplay scene
+  name is authored on the shell, and the load door is one method, so a restart is dispose + load again.
+- **Why:** A persistent object cannot reference objects of the scene a single-mode load destroys, so a serialized spawn-point reference is null exactly when the session needs it: assets survive the load, scene objects do not.
+  Resolving the world once at the load keeps the shell thin and gives Phase 2 a restart with no added state. The boot scene fires `sceneLoaded` for itself, so the handler needs a requested-flag check — an unrequested load
+  must not build a session.
 

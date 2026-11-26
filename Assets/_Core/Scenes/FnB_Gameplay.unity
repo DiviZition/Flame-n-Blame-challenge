@@ -963,7 +963,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 185626398}
-  - component: {fileID: 185626399}
   - component: {fileID: 185626400}
   m_Layer: 0
   m_Name: === System
@@ -988,22 +987,6 @@ Transform:
   - {fileID: 1562509834}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &185626399
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 185626397}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 40c42f9779f68674690ed56e87150acf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: FlameNBlame-asmdf::Flame_n_Blame_Challenge.Bootstrapper
-  _gameSettingsConfig: {fileID: 11400000, guid: f43fa27a943b4bb41b134e91c6ca2ce0, type: 2}
-  _resourcesConfig: {fileID: 11400000, guid: 3a5f3fd3e378c064e86199f280c73094, type: 2}
-  _pushPresetsConfig: {fileID: 11400000, guid: eb86ba75167465f4e8fb5db6e047bf26, type: 2}
-  _spawnPoints: {fileID: 65886842}
 --- !u!114 &185626400
 MonoBehaviour:
   m_ObjectHideFlags: 0
