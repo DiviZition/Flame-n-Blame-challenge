@@ -142,3 +142,7 @@ change an ID; a superseded rule is named in the title, its Rule compressed, neve
 ## G-040: One puff pool for the scene, handed in at composition (Recorded 2026-11-24, D-048)
 - **Rule:** A shared cosmetic service is **one object in the scene, referenced by every shell, injected into the session**. The budget is a **scene** number, not a per-prop number, so N pools is N × the budget.
 - A `FindObjectsByType` returning an array of a service that owns a budget is the smell.
+
+## G-041: A test run hangs on a modal the agent cannot see ("save the scene?", Yes/No) (Recorded 2026-11-26, the user's rule)
+- **Rule:** A `test run` that does not return within 10–20 s is a **popup**, not a slow suite. Ask the user to answer it, or skip the run; a hung run burns 600 s of CLI timeout and its results are lost, so never wait it out.
+- A run that returns `no_tests` afterwards: re-run once, the suite itself is fast (~30 s).
