@@ -14,6 +14,7 @@ and `TODO.md`.
 as **EditMode** on code (D-026).
 
 **Layers ↔ folders ↔ namespaces** (`Assets/_Core/Scripts/`): Composition `Flame_n_Blame_Challenge` at the root; UseCases `.UseCases`; Domain `.Domain` in `Domain/`; Adapters `.Adapters` in `InterfaceAdapters/` (D-014, D-012).
+Inside `Domain/` and `InterfaceAdapters/`, entity subfolders `Player/`, `Burnables/`, `Push/` group the scripts; Adapters also has `Core/` (shared ports, settings, spawn). Namespaces unchanged.
 
 **Domain:** `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData`, `PushPresetData`, `BurnableSystem` (`IBurnable`, `BurnableObject`, `IBurnablePreset`, `BurnablePreset`), `FireSpreadSystem`,
 `IBurnableHost`.
