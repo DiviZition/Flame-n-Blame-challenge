@@ -122,7 +122,7 @@ Why: D-016, D-027, D-028, D-030, D-031, D-034, D-038, D-039. Traps: G-012, G-016
 
 ### The fire rule, structurally
 
-Why: D-040…D-048. Traps: G-026, G-027, G-031, G-034, G-035, G-036, G-040.
+Why: D-040…D-052. Traps: G-026, G-027, G-031, G-034, G-035, G-036, G-040.
 
 - One axis: `IgnitionStrength` 0..1 + `CurrentDurability` (HP), **one heat door**
   `AffectIgnitionStrength(amount)`: the source integrates the amount, `dt` never enters the domain,
@@ -138,6 +138,10 @@ Why: D-040…D-048. Traps: G-026, G-027, G-031, G-034, G-035, G-036, G-040.
 - Spread is a **cursor, not a sweep**: `n = ceil(count/4)` objects per frame, each fed `Σ influence ×
   elapsed_of_that_object`, so the result is `n`-independent. The shader stays as accepted (D-041, D-042):
   quantized facets, hard `step` boundaries, no mask texture, no soft particles.
+- Spread heat leaves the domain through the shell's stream door (`IHeatSink`), the **same door the spray
+  uses**, and a visit names the **strongest** in-range neighbour; the shell clamps that direction to the mesh
+  face it faces. The adjacency is built once — props never move — so a frame pays table reads, no distance
+  (D-052).
 - The **one** puff pool is injected at composition; a per-prop pool multiplies the budget (G-040). A shell
   that grows fire, decays heat on a timer, counts pulses, or picks the sign of a stream has business
   rules in it.
@@ -147,10 +151,11 @@ Why: D-040…D-048. Traps: G-026, G-027, G-031, G-034, G-035, G-036, G-040.
 - Exactly one Unity `Update()` — `Bootstrapper` → `GameUpdater.Update(time, deltaTime)` → every
   registered `IUpdatable` **in registration order**, which **is** the execution-order contract (never
   Script Execution Order). Safe removal during iteration (staged queue + swap-remove).
-- Today's order: the composition root ticks `PlayerInputMain` itself, ahead of the global updater, then
-  `GamePlaySession.StartGamePlay()` registers `Player → PlayerMotor → BurnableShell[] + FireSpreadSystem` — pools
-  constructed first, shells before the spread system sees them; a shell runs **after** the domain, so it consumes
-  what the domain decided (D-013).
+- Today's order: the composition root ticks `PlayerInputMain` itself, ahead of the global updater (D-053), then
+  `GamePlaySession.StartGamePlay()` registers `Player → PlayerMotor → BurnSystem` — pools constructed first.
+  Inside the burn system the order is `FireSpreadSystem → BurnableObject + BurnableShell pairs`: the spread runs
+  first, writing heat through the shell's stream door, the body ticks the burn, the shell copies what the body
+  decided this tick (D-013, D-055).
 - The gate: the root ticks the input **every frame, with no state check** and the session graph **only while the
   flow says Playing**, so a pause fact stays fresh while the world is frozen (D-053). Pausing is one state check,
   not a second loop. A removal is staged, so a teardown that gates the tick **flushes** the queue (G-044).

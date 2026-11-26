@@ -52,6 +52,10 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   at the reduced air speed; (e) a 0.1 s spray for 3 s **saturates**, not accelerates (B-003).
 - [ ] **Fire tests after the feel verdict** (D-026). The lab stand is deleted (D-048), so the look and the
   preset numbers are the user's call, made by playing props that burn.
+- [ ] **Fire spread budget** (D-052): 24 props, adjacency built once at composition (in-range pairs only),
+  6 visits a frame × ~8 neighbours ≈ 48 table reads, no distance, no per-frame allocation.
+- [ ] **Play check:** a prop ignited by a neighbour starts its char front on the face turned to that fire
+  (the user's eyes, G-025), once the stream door and the adjacency land.
 - [ ] **Asmdef housekeeping:** drop the `CartoonFX` vendor-demo reference (an asset-store update can
   delete it and break our compile) and fix the `name` typo `FlameNBlame-asmdf` (G-001, D-014).
 - [ ] **Delete the stray `Player.cs` at repo root** — an untracked copy of

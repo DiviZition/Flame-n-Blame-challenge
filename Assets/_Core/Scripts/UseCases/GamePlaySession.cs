@@ -74,19 +74,27 @@ namespace Flame_n_Blame_Challenge.UseCases
                 _puffPool.Construct();
 
             var burnShells = UnityEngine.Object.FindObjectsByType<BurnableShell>();
+            var burnables = new BurnableObject[burnShells.Length];
 
             for (int i = 0; i < burnShells.Length; i++)
             {
-                var burnable = new BurnableObject(burnShells[i].Preset, burnShells[i].transform.position);
-                burnShells[i].Construct(burnable, _puffPool);
+                burnables[i] = new BurnableObject(burnShells[i].Preset, burnShells[i].transform.position);
+                burnShells[i].Construct(burnables[i], _puffPool);
 
-                fireSpread.Add(burnable);
-
-                _updater.RegisterUpdatable(burnable);
-                _updater.RegisterUpdatable(burnShells[i]);
+                fireSpread.Add(burnables[i], burnShells[i]);
             }
 
+            // Registration order IS the execution-order contract (D-013), inside the burn system too: the
+            // spread writes heat through the shell's stream door, the body ticks the burn, the shell copies
+            // what the body decided this tick. Spread last, as it was, meant the shell copied a frame-old
+            // body.
             _updater.RegisterUpdatable(fireSpread);
+
+            for (int i = 0; i < burnables.Length; i++)
+            {
+                _updater.RegisterUpdatable(burnables[i]);
+                _updater.RegisterUpdatable(burnShells[i]);
+            }
         }
 
         public void UpdateLogic(float time, float deltaTime) => _updater.UpdateLogic(time, deltaTime);

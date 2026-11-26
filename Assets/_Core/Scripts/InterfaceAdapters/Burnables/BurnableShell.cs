@@ -18,6 +18,10 @@ namespace Flame_n_Blame_Challenge.Adapters
     /// already there recedes (G-035). The mesh lives in the shell, so the shader cannot derive that radius.
     /// Authored look numbers (`_BurnReach` = 1, `_EmissionStrength`, `_ShellHeight`) stay in the material.
     ///
+    /// The shell is the sink the domain streams into (`IHeatSink`): the spray and the fire spread are the same
+    /// stream, and the fire's mark is the point on the surface the heat arrives at — a spray hit point is
+    /// already on it, a distant burning neighbour is clamped to the face that faces him (D-052).
+    ///
     /// The material is shared by every burnable, so the numbers travel in a `MaterialPropertyBlock`: 24
     /// objects, one shader variant (D-040, the WebGL budget in TODO.md).
     ///
@@ -26,7 +30,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     /// a warming body keeps its smoke at the point, growing it, and the fire chain is silent until ignition.
     /// Every transform under a root is written, so a nested sub-emitter follows its parent.
     [SelectionBase]
-    public class BurnableShell : MonoBehaviour, IUpdatable
+    public class BurnableShell : MonoBehaviour, IUpdatable, IHeatSink
     {
         private static readonly int BurnId = Shader.PropertyToID("_Burn");
         private static readonly int FireId = Shader.PropertyToID("_Fire");
@@ -71,6 +75,10 @@ namespace Flame_n_Blame_Challenge.Adapters
         private Vector3 _centerLocal;
         private Vector3[] _cornersLocal = Array.Empty<Vector3>();
 
+        // The same box as min and max in object space, so a fire contact is clamped to the mesh's surface.
+        private Vector3 _meshMinLocal;
+        private Vector3 _meshMaxLocal;
+
         // Particle roots with every transform under them, and the scale each one starts at. Inactive nodes are
         // collected too: a chain authored with a disabled root is the author's choice, and the shell switches
         // it on.
@@ -111,6 +119,14 @@ namespace Flame_n_Blame_Challenge.Adapters
                     (c & 1) == 0 ? -union.extents.x : union.extents.x,
                     (c & 2) == 0 ? -union.extents.y : union.extents.y,
                     (c & 4) == 0 ? -union.extents.z : union.extents.z));
+
+            _meshMinLocal = _cornersLocal[0];
+            _meshMaxLocal = _cornersLocal[0];
+            for (int c = 1; c < 8; c++)
+            {
+                _meshMinLocal = Vector3.Min(_meshMinLocal, _cornersLocal[c]);
+                _meshMaxLocal = Vector3.Max(_meshMaxLocal, _cornersLocal[c]);
+            }
 
             CacheChain(_fireParticles, out _fireChain, out _fireBaseScales);
             CacheChain(_smokeParticles, out _smokeChain, out _smokeBaseScales);
@@ -171,12 +187,13 @@ namespace Flame_n_Blame_Challenge.Adapters
             ActivateChain(_smokeChain);
         }
 
-        /// One stream contact. **The sign picks which cosmetic fact it is, and that mapping is the shell's
-        /// business** (the fire rules are the domain's, D-046, G-036): fire carries the contact point to the
-        /// ignition, water plays the splash at the contact and leaves the point alone. No point (rain, a
-        /// room-wide soak) means the centre. The origin itself is written at the ignition, in `UpdateLogic`.
-        /// Puff count and capacity are the pool's business, and the splash plays at the pool's full scale:
-        /// the axis has no water-strength number, the amount is heat, not volume.
+        /// One stream contact, from the spray or from the fire spread (`IHeatSink`). **The sign picks which
+        /// cosmetic fact it is, and that mapping is the shell's business** (the fire rules are the domain's,
+        /// D-046, G-036): fire carries the contact to the ignition, water plays the splash at the contact and
+        /// leaves the point alone. No point (rain, a room-wide soak) means the centre. The origin itself is
+        /// written at the ignition, in `UpdateLogic`. Puff count and capacity are the pool's business, and the
+        /// splash plays at the pool's full scale: the axis has no water-strength number, the amount is heat,
+        /// not volume.
         public void ApplyStream(float amount, Vector3? contactPoint)
         {
             if (_burnable == null)
@@ -190,9 +207,23 @@ namespace Flame_n_Blame_Challenge.Adapters
                     _puffPool.Spawn(worldPoint, 1f);
             }
             else if (contactPoint.HasValue && !_originLocked)
-                _burnPointLocal = transform.InverseTransformPoint(worldPoint);
+                _burnPointLocal = SurfacePointLocal(worldPoint);
 
             _burnable.AffectIgnitionStrength(amount);
+        }
+
+        /// The point the fire burns from, in object space: the contact clamped to the mesh's box. A spray hit
+        /// point is already on the surface, so the clamp leaves it where it is; a distant burning neighbour
+        /// lands the origin on the face turned to him, which is where a real fire starts eating a body.
+        private Vector3 SurfacePointLocal(Vector3 worldPoint)
+        {
+            Vector3 local = transform.InverseTransformPoint(worldPoint);
+
+            local.x = Mathf.Clamp(local.x, _meshMinLocal.x, _meshMaxLocal.x);
+            local.y = Mathf.Clamp(local.y, _meshMinLocal.y, _meshMaxLocal.y);
+            local.z = Mathf.Clamp(local.z, _meshMinLocal.z, _meshMaxLocal.z);
+
+            return local;
         }
 
         public void UpdateLogic(float time, float deltaTime)

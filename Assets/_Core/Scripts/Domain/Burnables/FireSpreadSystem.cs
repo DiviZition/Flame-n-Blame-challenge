@@ -16,6 +16,11 @@ namespace Flame_n_Blame_Challenge.Domain
     /// one object receives per second is the same whatever `n` is. The sweep is an integral over time, not a
     /// sampling of the state.
     ///
+    /// **The heat leaves through the shell's stream door** (`IHeatSink`), the same door the spray uses, so the
+    /// shell hears the fire as a stream, not as a number growing in a body it cannot see (D-052). A visit also
+    /// names the **strongest** in-range neighbour: who is heating me is a fact about the fire, and the shell
+    /// puts the char front on the side that neighbour stands on.
+    ///
     /// Positions are the ones the shells reported at composition: the props of this game do not move, so the
     /// system never asks for a live position (ARCHITECTURE §5 — the engine owns the body).
     public class FireSpreadSystem : IUpdatable
@@ -23,14 +28,16 @@ namespace Flame_n_Blame_Challenge.Domain
         private const int FRAMES_PER_SWEEP = 4;
 
         private readonly List<IBurnable> _burnables = new List<IBurnable>(64);
+        private readonly List<IHeatSink> _sinks = new List<IHeatSink>(64);
         private readonly List<float> _lastVisit = new List<float>(64);
         private int _cursor;
 
-        /// Composition: the host, and where it stands. The position is the shell's, handed once — the spread
-        /// system holds no authority over the world.
-        public void Add(IBurnable burnable)
+        /// Composition: the host, its sink, and where it stands. The position is the shell's, handed once — the
+        /// spread system holds no authority over the world.
+        public void Add(IBurnable burnable, IHeatSink sink)
         {
             _burnables.Add(burnable);
+            _sinks.Add(sink);
             _lastVisit.Add(0f);
         }
 
@@ -54,8 +61,10 @@ namespace Flame_n_Blame_Challenge.Domain
                 if (burnable == null || burnable.IsBurnedOut)
                     continue;
 
-                Vector3 targetPosition = _burnables[target].Position;
+                Vector3 targetPosition = burnable.Position;
                 float influence = 0f;
+                float strongestContribution = 0f;
+                int strongestSource = -1;
 
                 for (int i = 0; i < count; i++)
                 {
@@ -66,11 +75,23 @@ namespace Flame_n_Blame_Challenge.Domain
                     if (source == null || !source.IsBurning)
                         continue;
 
-                    influence += source.GetFireInfluenceAtDistance(
-                        Vector3.Distance(targetPosition, _burnables[i].Position));
+                    float contribution = source.GetFireInfluenceAtDistance(
+                        Vector3.Distance(targetPosition, source.Position));
+
+                    influence += contribution;
+
+                    if (contribution > strongestContribution)
+                    {
+                        strongestContribution = contribution;
+                        strongestSource = i;
+                    }
                 }
 
-                burnable.AffectIgnitionStrength(influence * elapsed);
+                // No burning neighbour in reach — no stream. `influence` above 0 means the strongest is found.
+                if (influence <= 0f)
+                    continue;
+
+                _sinks[target].ApplyStream(influence * elapsed, _burnables[strongestSource].Position);
             }
         }
     }

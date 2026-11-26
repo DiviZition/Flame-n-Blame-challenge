@@ -25,6 +25,10 @@ namespace Flame_n_Blame_Challenge.Domain
         /// fire's strength with a quadratic falloff, 0 at and beyond the range.
         public float GetFireInfluenceAtDistance(float distance);
 
+        /// How far this body's fire reaches, in metres: the reach is the pair test the adjacency table is
+        /// built with (D-052), so the spread system reads it, and it is one of the five DTO numbers.
+        public float MaxFirePopulationRange { get; }
+
         /// The only door heat goes through, in both directions. `amount` is what a source has integrated over
         /// its own time (the source owns its cadence, the domain never sees a `dt`); `FireResistance` is how
         /// strongly this body answers — a big wardrobe (res 0.2) heats and douses 5 times slower than a
@@ -36,6 +40,10 @@ namespace Flame_n_Blame_Challenge.Domain
     {
         private readonly IBurnablePreset _preset;
         public Vector3 Position { private set; get; }
+
+        /// The reach is authored, so it is a read of the preset, not state: the spread system builds its
+        /// adjacency with it, and never asks for the live position.
+        public float MaxFirePopulationRange => _preset.MaxFirePopulationRange;
 
         public float IgnitionStrength { get; private set; } // Normalized heat the body is at, 0..1
         public float CurrentDurability { get; private set; } // HP the fire has not eaten

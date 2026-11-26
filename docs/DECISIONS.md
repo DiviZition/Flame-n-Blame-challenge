@@ -16,8 +16,7 @@ as **EditMode** on code (D-026).
 **Layers ↔ folders ↔ namespaces** (`Assets/_Core/Scripts/`): Composition `Flame_n_Blame_Challenge` at the root; UseCases `.UseCases`; Domain `.Domain` in `Domain/`; Adapters `.Adapters` in `InterfaceAdapters/` (D-014, D-012).
 Inside `Domain/` and `InterfaceAdapters/`, entity subfolders `Player/`, `Burnables/`, `Push/` group the scripts; Adapters also has `Core/` (shared ports, settings, spawn). Namespaces unchanged.
 
-**Domain:** `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData`, `PushPresetData`, `BurnableSystem` (`IBurnable`, `BurnableObject`, `IBurnablePreset`, `BurnablePreset`), `FireSpreadSystem`,
-`IBurnableHost`.
+**Domain:** `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData`, `PushPresetData`, `BurnableSystem` (`IBurnable`, `BurnableObject`, `IBurnablePreset`, `BurnablePreset`), `FireSpreadSystem`, `IHeatSink`.
 
 **Adapters:** ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPhysicsSettings`, `IControlSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings`, `PhysicsSettings`, `PlayerControlSettings`, `PushPresets`, `ResourceSpawner`, `ResourcesProvider`, `PlayerMotor`, `HydrantPush`,
 `BurnableShell`, `SmokePuffPool`, `GameplayUiShell`, `UiButtonFeel`. **UseCases:** `GamePlaySession`, `GameFlow` + `GameFlowState` (plain C#, no Unity types, D-053).
@@ -27,10 +26,11 @@ Inside `Domain/` and `InterfaceAdapters/`, entity subfolders `Player/`, `Burnabl
 
 **Who talks to what:** `Bootstrapper` — in the boot scene, `DontDestroyOnLoad`, the one `Update()` — loads the gameplay scene and builds the session when that scene reports ready, resolving `SpawnPoints` once there (D-052),
 ticks `PlayerInputMain` every frame with no state check, gates the session graph on `GameFlow.State`, drives the flow from the ESC press fact, and flushes the staged removal at teardown (D-053, G-044) →
-`Updater` → registered `IUpdatable` in registration order `Player → PlayerMotor → BurnableObject + BurnableShell pairs → FireSpreadSystem` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
+`Updater` → registered `IUpdatable` in registration order `Player → PlayerMotor → BurnSystem`, and inside the burn system `FireSpreadSystem → BurnableObject + BurnableShell pairs` (D-013, D-048, D-055). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
 IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`, exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A
-source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, writes `_BurnOrigin` and `_BurnExtent` once at the ignition, drives the fire and smoke particle chains (D-051), and reads
-the sign of `ApplyStream(amount, contact)` (D-046). The **one** `SmokePuffPool` and the `PlayerMotor` arrive from `Resources.asset` through `ResourceSpawner`, injected into the session and its shells (D-048, G-040).
+source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` is the sink `FireSpreadSystem` streams into (`IHeatSink`), copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, puts
+`_BurnOrigin` on the mesh face the strongest burning neighbour stands on, writes `_BurnExtent` once at the ignition, drives the fire and smoke particle chains (D-051), and reads the sign of `ApplyStream(amount, contact)` (D-046, D-055). The **one** `SmokePuffPool` and the `PlayerMotor` arrive from
+`Resources.asset` through `ResourceSpawner`, injected into the session and its shells (D-048, G-040).
 `GameplayUiShell` reacts to `GameFlow.StateChanged` (window, restart button, open/close/hover/press tweens) and forwards button clicks to the flow's requests (D-054).
 
 **Boot scene `Assets/_Core/Scenes/FnB_Boot.unity`:** the root `Bootstrapper`, with `Ui` (Canvas – Screen Space Overlay, CanvasScaler, GraphicRaycaster, `GameplayUiShell`) → `PaperPanel` (Image + CanvasGroup) → `TaskText`,
@@ -364,4 +364,14 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
   shows in Briefing and Paused only; the buttons forward requests to the flow and the shell tweens what the state decided.
 - **Why:** A single-mode load destroys the boot scene's roots, so a UI that is a root dies with the scene it is supposed to restart. Under the root that survives, the UI and its EventSystem persist with no second
   DontDestroyOnLoad call and no scene lookup.
+## D-055: The spread streams heat through the shell's door and names the strongest neighbour
+- **2026-11-27 · Accepted · extends D-046; the spread clause of D-043 rewritten**
+- **Decision:** Spread heat goes out through `IHeatSink.ApplyStream(amount, contactPoint)` — the **same door the
+  spray uses** — not into a body the shell cannot see. A visit names the **strongest** in-range neighbour: who
+  heats me is a fact about the fire, so the shell puts the char front on the mesh face turned to him, clamped
+  to the mesh box the shell owns. `IBurnable` gains one number, `MaxFirePopulationRange`, the pair test the
+  adjacency is built with; the table is built once, props never move. Order: spread → body → shell.
+- **Why:** A list of affectors in `IBurnable` is domain data the domain never reads (D-047), and a shell that
+  picks the strongest neighbour is a shell with rules (D-012). Fire direction is not a visual concept, so the
+  fact lives in the spread; mapping a direction to a point is geometry, which D-046 already gives the shell.
 
