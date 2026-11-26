@@ -1,5 +1,4 @@
 using Flame_n_Blame_Challenge.Domain;
-using System.Reflection.Emit;
 using UnityEngine;
 
 namespace Flame_n_Blame_Challenge.Adapters
@@ -16,6 +15,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     {
         [SerializeField] private CharacterController _controller;
         [SerializeField] private Transform _cameraHolder;
+        [SerializeField] private float _cameraShiftOffset;
 
         public bool isSprinting => _player?.Movement.IsSprinting ?? false;
         public bool IsGrounded => _player?.Movement.IsGrounded ?? false;
@@ -23,8 +23,13 @@ namespace Flame_n_Blame_Challenge.Adapters
 
         private Player _player;
         private Vector3 _contactNormal;
+        private Vector3 _cameraStartPosition;
 
-        public void Construct(Player player) => _player = player;
+        public void Construct(Player player)
+        {
+            _player = player;
+            _cameraStartPosition = _cameraHolder.localPosition;
+        }
 
         public void UpdateLogic(float time, float deltaTime)
         {
@@ -60,6 +65,8 @@ namespace Flame_n_Blame_Challenge.Adapters
         {
             transform.rotation = Quaternion.Euler(0f, _player.LookRotation.Yaw, 0f);
             _cameraHolder.localRotation = Quaternion.Euler(_player.LookRotation.Pitch, 0f, 0f);
+            float posShiftForward = Mathf.Lerp(0, _cameraShiftOffset, _player.LookRotation.Pitch / 90);
+            _cameraHolder.localPosition = _cameraStartPosition + Vector3.forward * posShiftForward;
         }
     }
 }

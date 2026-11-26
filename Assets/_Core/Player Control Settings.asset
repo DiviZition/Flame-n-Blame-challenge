@@ -17,4 +17,4 @@ MonoBehaviour:
   <PlayerSpeedInAir>k__BackingField: 2
   <AirAcceleration>k__BackingField: 6
   <LookSensitivity>k__BackingField: 0.17
-  <LookPitchBounds>k__BackingField: {x: -75, y: 45}
+  <LookPitchBounds>k__BackingField: {x: -75, y: 75}
