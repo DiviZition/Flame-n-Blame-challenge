@@ -25,6 +25,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     /// from `_particleMinScale` to `_particleMaxScale` on the same axis. `Charredness` 0 is the ignition, so
     /// a warming body keeps its smoke at the point, growing it, and the fire chain is silent until ignition.
     /// Every transform under a root is written, so a nested sub-emitter follows its parent.
+    [SelectionBase]
     public class BurnableShell : MonoBehaviour, IUpdatable
     {
         private static readonly int BurnId = Shader.PropertyToID("_Burn");

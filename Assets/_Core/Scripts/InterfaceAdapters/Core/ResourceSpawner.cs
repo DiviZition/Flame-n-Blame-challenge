@@ -16,10 +16,10 @@ namespace Flame_n_Blame_Challenge.Adapters
             _spawnPoints = spawnPoints;
         }
 
-        public PlayerMotor SpawnPlayer()
+        public PlayerShell SpawnPlayer()
         {
             _spawnPoints.GetPoint(Type.Player, out Vector3 pos, out Quaternion rot);
-            return Object.Instantiate(_resourcesProvider.PlayerMotor, pos, rot);
+            return Object.Instantiate(_resourcesProvider.PlayerShell, pos, rot);
         } 
         public SmokePuffPool SpawnPuffPool() => Object.Instantiate(_resourcesProvider.PuffPull);
     }

@@ -40,7 +40,7 @@ Material:
     - _EdgeDarken: 0.523
     - _EdgeWidth: 0.388
     - _EmissionStrength: 2.5
-    - _Fire: 0.447
+    - _Fire: 0
     - _FireLick: 0.24
     - _FlameFacetSize: 0.25
     - _FlameLevels: 16

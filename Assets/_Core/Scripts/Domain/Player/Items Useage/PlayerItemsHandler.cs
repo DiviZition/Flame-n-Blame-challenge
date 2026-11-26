@@ -3,38 +3,6 @@ using System;
 
 namespace Flame_n_Blame_Challenge.Domain
 {
-    public class ItemData
-    {
-        public HandSide HandSide { get; private set; }
-        public IHoldable Slot { get; private set; }
-        public float TimeToUse { get; private set; }
-
-        public ItemData(HandSide handSide) => HandSide = handSide;
-
-        public void SetItem(IHoldable item)
-        {
-            Slot = item;
-
-            float tmeTouse = item == null ? item.EquipTime : 0;
-            SetTimeToUse(tmeTouse);
-        }
-
-        public void DecreaseTimer(float value) => SetTimeToUse(TimeToUse - value);
-        public void SetTimeToUse(float time)
-        {
-            TimeToUse = time;
-
-            if (TimeToUse < 0)
-                TimeToUse = 0;
-        }
-    }
-
-    public enum HandSide
-    {
-        Left,
-        Right,
-    }
-
     public class PlayerItemsHandler : IUpdatable
     {
         public event Action<HandSide, IHoldable> OnItemPickedUp;
@@ -127,16 +95,5 @@ namespace Flame_n_Blame_Challenge.Domain
             SetItemAvailableToPickUp(null);
             OnItemPickedUp?.Invoke(hand.HandSide, hand.Slot);
         }
-    }
-
-    public interface IHoldable
-    {
-        public float EquipTime { get; }
-    }
-
-    public interface IUsable
-    {
-        public float UseCoolDown { get; }
-        public void Use();
     }
 }

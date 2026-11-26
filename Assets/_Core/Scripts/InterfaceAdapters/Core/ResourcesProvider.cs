@@ -7,7 +7,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     [CreateAssetMenu(fileName = "Resources", menuName = "Configs/Resources", order = 0)]
     public class ResourcesProvider : ScriptableObject
     {
-        [field: SerializeField] public PlayerMotor PlayerMotor { get; private set; }
+        [field: SerializeField] public PlayerShell PlayerShell { get; private set; }
         [field: SerializeField] public SmokePuffPool PuffPull { get; private set; }
     }
 }

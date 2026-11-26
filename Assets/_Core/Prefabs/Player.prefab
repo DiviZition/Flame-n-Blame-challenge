@@ -616,9 +616,11 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7625446189541936973}
+  - component: {fileID: 4619265932195510285}
+  - component: {fileID: 2987755445531323757}
   - component: {fileID: 1848458353417603451}
   - component: {fileID: 6101626641581084138}
-  - component: {fileID: 4619265932195510285}
+  - component: {fileID: 4634927821799141305}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -643,6 +645,45 @@ Transform:
   - {fileID: 747750127075177749}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!143 &4619265932195510285
+CharacterController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7656332020771492122}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Height: 1.75
+  m_Radius: 0.25
+  m_SlopeLimit: 45
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.08
+  m_MinMoveDistance: 0.001
+  m_Center: {x: 0, y: 0.9, z: 0}
+--- !u!114 &2987755445531323757
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7656332020771492122}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae2003dd5a3859842b48e45d64536c09, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.PlayerShell
+  <Motor>k__BackingField: {fileID: 1848458353417603451}
+  <ItemsHandler>k__BackingField: {fileID: 4634927821799141305}
 --- !u!114 &1848458353417603451
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -672,31 +713,26 @@ MonoBehaviour:
   _animator: {fileID: 5974265237381531348}
   _motor: {fileID: 1848458353417603451}
   _smoothSpeed: 4
---- !u!143 &4619265932195510285
-CharacterController:
+--- !u!114 &4634927821799141305
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7656332020771492122}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 3
-  m_Height: 1.75
-  m_Radius: 0.25
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.08
-  m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 0.9, z: 0}
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bef6e7b17a52e5b43a1fc7a5fe9ab751, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.PlayerItemsHandlerView
+  _rightHand: {fileID: 0}
+  _leftHand: {fileID: 0}
+  _detectionRadius: 1
+  _detectionRange: 2
+  _cameraTransform: {fileID: 747750127075177749}
+  _itemsMask:
+    serializedVersion: 2
+    m_Bits: 0
 --- !u!1 &8154900365108570003
 GameObject:
   m_ObjectHideFlags: 0

@@ -17,8 +17,6 @@ namespace Flame_n_Blame_Challenge.UseCases
         private Updater _ownUpdater;
         private bool _gameStarted;
 
-        private SmokePuffPool _puffPool;
-
         public GamePlaySession(Updater updater, IPlayerInput inputs, IGameSettings gameSettings,
             IPushPresets pushPresets, IResourceSpawner resourceSpawner)
         {
@@ -45,15 +43,33 @@ namespace Flame_n_Blame_Challenge.UseCases
             _ownUpdater.RegisterUpdatable(player);
             _ownUpdater.RegisterUpdatable(playerMotor);
 
-            StartFire();
+            var burnSystem = new BurnSystem(_resourceSpawner);
+            _ownUpdater.RegisterUpdatable(burnSystem);
 
             _globalUpdater.RegisterUpdatable(_ownUpdater);
         }
 
-        private void StartFire()
+        public void Dispose()
+        {
+            if (_gameStarted == false)
+                return;
+
+            _globalUpdater.RemoveUpdatable(_ownUpdater);
+            _ownUpdater.Clear();
+        }
+    }
+
+    // TODO: better resource control over the shells and particles.
+    public class BurnSystem : IUpdatable
+    {
+        private SmokePuffPool _puffPool;
+        private Updater _updater;
+
+        public BurnSystem(IResourceSpawner resourceSpawner)
         {
             var fireSpread = new FireSpreadSystem();
-            _puffPool = _resourceSpawner.SpawnPuffPool();
+            _updater = new Updater();
+            _puffPool = resourceSpawner.SpawnPuffPool();
 
             if (_puffPool != null)
                 _puffPool.Construct();
@@ -67,22 +83,13 @@ namespace Flame_n_Blame_Challenge.UseCases
 
                 fireSpread.Add(burnable);
 
-                _ownUpdater.RegisterUpdatable(burnable);
-                _ownUpdater.RegisterUpdatable(burnShells[i]);
+                _updater.RegisterUpdatable(burnable);
+                _updater.RegisterUpdatable(burnShells[i]);
             }
 
-            _ownUpdater.RegisterUpdatable(fireSpread);
+            _updater.RegisterUpdatable(fireSpread);
         }
 
-        public void Dispose()
-        {
-            if (_gameStarted == false)
-                return;
-
-            _globalUpdater.RemoveUpdatable(_ownUpdater);
-            _ownUpdater.Clear();
-
-            _puffPool = null;
-        }
+        public void UpdateLogic(float time, float deltaTime) => _updater.UpdateLogic(time, deltaTime);
     }
 }

@@ -4,7 +4,7 @@ namespace Flame_n_Blame_Challenge.Adapters
     /// instantiates prefabs (ARCHITECTURE §6: interfaces for external needs).
     public interface IResourceSpawner
     {
-        PlayerMotor SpawnPlayer();
+        PlayerShell SpawnPlayer();
         SmokePuffPool SpawnPuffPool();
         // add more only when you actually need them
     }

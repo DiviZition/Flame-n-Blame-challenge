@@ -15,8 +15,8 @@ namespace Flame_n_Blame_Challenge.Tests
         /// after that tick (`PressJump` in the jump tests), because a held press must not fire again (D-039).
         public bool JumpPressed { get; set; }
 
-        public event Action<bool> OnInteractButton;
-        public event Action<bool> OnUseButton;
-        public event Action<bool> OnThrowButton;
+        public bool UseRightItemPressed { get; set; }
+        public bool UseLeftItemPressed { get; set; }
+        public bool ThrowButtonPressed { get; set; }
     }
 }
