@@ -23,6 +23,8 @@ MonoBehaviour:
         - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-66095847-0
         - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-515207058-0
         - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-971959110-0
+        - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-5576558638705731597-1699773035
+        - globalObjectIdString: GlobalObjectId_V1-2-41668cae782432949a6f38a5c12b96e4-1099765531409040916-1699773035
         values:
         - colorIndex: 0
           iconNameOrGuid: ParticleSystem Icon
@@ -42,6 +44,14 @@ MonoBehaviour:
           isColorRecursive: 0
         - colorIndex: 0
           iconNameOrGuid: PreMatCylinder
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: Camera Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: AvatarMask On Icon
           isIconRecursive: 0
           isColorRecursive: 0
   bookmarks: []

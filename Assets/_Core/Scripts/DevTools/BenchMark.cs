@@ -10,17 +10,17 @@ using UnityEditor;
 
 public class BenchMark : MonoBehaviour
 {
-    public BurnableShell _shell;
     public Transform _transform;
+    public Transform _transform2;
     public float value;
 
     private void TestAction()
     {
-        Vector3 posStart = _transform.position;
-        Vector3 posShell = _shell.transform.position;
-        Ray ray = new Ray(posStart, posShell - posStart);
-        Physics.Raycast(ray, out RaycastHit hitInfo);
-        _shell.ApplyStream(value, hitInfo.point);
+    }
+
+    private void Update()
+    {
+        _transform2.position = _transform.position;
     }
 
     #region Benchmark implementation
