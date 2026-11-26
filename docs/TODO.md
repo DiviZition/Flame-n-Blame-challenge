@@ -67,8 +67,14 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
 - [ ] One carry slot: pick up / hold / activate a single item
 - [ ] Sound for ignite / burn / extinguish / collapse (no VFX sound yet)
 - [ ] Location: a house full of burnables + a street with the hydrant; music + ambience
-- [ ] Menu + Play button, restart; [x] launch: the boot scene loads gameplay, session built on the load (D-052)
-- [ ] Game state control: menu / in-game / pause
+- [ ] Menu + Play button, restart; [x] launch: the boot scene loads gameplay, session built on the load (D-052);
+  [x] built: the paper briefing window with Start/Restart and ESC pause (`GameplayUiShell`, D-054) — **needs
+  the user's play verdict** (open/close/hover/press feel), then its tests
+- [ ] Game state control: menu / in-game / pause; [x] built: `GameFlow`'s three states gate the tick, the input
+  tick moved to the composition root (D-053) — **needs the user's play verdict** (freeze, restart read)
+- [ ] **Launch UI perf budget (WebGL, D-007), written before code:** one overlay canvas, ≤12 UI elements,
+  one EventSystem, one static TMP mesh, no `Update()` on the shell, ≤4 live tweens (open/close/hover/press),
+  no per-frame allocation.
 - [ ] Goal: extinguish the house and walk out (scoring stays deferred, D-008)
 
 ## Phase 2 — extinguisher, the main system (pillar 2)

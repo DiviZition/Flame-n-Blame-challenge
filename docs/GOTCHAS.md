@@ -146,3 +146,15 @@ change an ID; a superseded rule is named in the title, its Rule compressed, neve
 ## G-041: A test run hangs on a modal the agent cannot see ("save the scene?", Yes/No) (Recorded 2026-11-26, the user's rule)
 - **Rule:** A `test run` that does not return within 10–20 s is a **popup**, not a slow suite. Ask the user to answer it, or skip the run; a hung run burns 600 s of CLI timeout and its results are lost, so never wait it out.
 - A run that returns `no_tests` afterwards: re-run once, the suite itself is fast (~30 s).
+
+## G-042: A Button gives no hover fact, and `PointerEventData.object` no longer exists (Recorded 2026-11-26)
+- **Rule:** uGUI 2.6 (Unity 6) gives `Button` only `onClick`; hover and press facts come from `IPointerEnterHandler`/`IPointerExitHandler`, and the object under the pointer is `data.hovered` (a **list**), never `data.object`.
+- The handler is found by walking **up** the hierarchy and a `Button` is already a handler, so a pointer fact for a button must be taken on the **button's own** GameObject; a canvas-root shell never sees it. A TMP font reference is set as `guid:<guid>`.
+
+## G-043: A new EventSystem with `StandaloneInputModule` throws every frame (Recorded 2026-11-26)
+- **Rule:** The project runs the Input System (`activeInputHandler`), so `StandaloneInputModule` reads `UnityEngine.Input` and logs an exception **every frame**. Put `InputSystemUIInputModule` on the EventSystem, always.
+- A Button is its own pointer handler, so a feel adapter goes on the **button's own** GameObject — a handler further up never gets the fact.
+
+## G-044: A staged removal never flushes when the tick that owns it is gated (Recorded 2026-11-26)
+- **Rule:** Removal is staged and applied by the next `UpdateLogic` **of that updater**. A root that gates the tick must flush the queue at teardown, or the disposed list stays registered.
+- The scene reload is the case: Unity destroys the shells with the scene, the list does not die, and the next Playing ticks a destroyed shell.

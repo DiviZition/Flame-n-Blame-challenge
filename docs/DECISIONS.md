@@ -1,6 +1,6 @@
 # DECISIONS.md — Decision Log
 
-Two jobs: §Current structure (the state map, rewritten freely) and the log D-001…D-052 — the *why* of non-obvious calls, so they are not re-litigated.
+Two jobs: §Current structure (the state map, rewritten freely) and the log D-001…D-054 — the *why* of non-obvious calls, so they are not re-litigated.
 
 **Rules:** one entry = `## D-xxx: title` + `**Date · Status · supersede**` + `Decision:` + `Why:`, **≤ 10 lines per entry, ≤ 400 for the file, ≤ 320 chars per line.** Log only the non-obvious: obvious, reversible, no system impact → not logged. **Entries are editable** — Decision and Why state the
 rule as it stands today, history is in git (`git log --follow docs/DECISIONS.md`), a supersede is a name in the Status line, never a retelling. **Never in this file:** measured numbers, gate outputs, test counts, file lists, CLI commands, scene coordinates, probe values — they go to the commit body
@@ -20,18 +20,22 @@ Inside `Domain/` and `InterfaceAdapters/`, entity subfolders `Player/`, `Burnabl
 `IBurnableHost`.
 
 **Adapters:** ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPhysicsSettings`, `IControlSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings`, `PhysicsSettings`, `PlayerControlSettings`, `PushPresets`, `ResourceSpawner`, `ResourcesProvider`, `PlayerMotor`, `HydrantPush`,
-`BurnableShell`, `SmokePuffPool`.
+`BurnableShell`, `SmokePuffPool`, `GameplayUiShell`, `UiButtonFeel`. **UseCases:** `GamePlaySession`, `GameFlow` + `GameFlowState` (plain C#, no Unity types, D-053).
 
 **Authored assets:** `Game Settings.asset` (two references, no numbers), `Physics Settings.asset` (mass, gravity, ground rate, drags, cap, jump carry), `Player Control Settings.asset` (speeds, accelerations, look), `Push Presets.asset` (`[SerializeReference]` list keyed by `PushType`),
 `Resources.asset`.
 
-**Who talks to what:** `Bootstrapper` — in the boot scene, `DontDestroyOnLoad`, the one `Update()` — loads the gameplay scene and builds the session when that scene reports ready, resolving `SpawnPoints` once there (D-052) → `Updater` → registered `IUpdatable` in registration order
-`PlayerInputMain → Player → PlayerMotor → BurnableObject + BurnableShell pairs → FireSpreadSystem` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
+**Who talks to what:** `Bootstrapper` — in the boot scene, `DontDestroyOnLoad`, the one `Update()` — loads the gameplay scene and builds the session when that scene reports ready, resolving `SpawnPoints` once there (D-052),
+ticks `PlayerInputMain` every frame with no state check, gates the session graph on `GameFlow.State`, drives the flow from the ESC press fact, and flushes the staged removal at teardown (D-053, G-044) →
+`Updater` → registered `IUpdatable` in registration order `Player → PlayerMotor → BurnableObject + BurnableShell pairs → FireSpreadSystem` (D-013, D-048). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
 IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`, exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A
 source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, writes `_BurnOrigin` and `_BurnExtent` once at the ignition, drives the fire and smoke particle chains (D-051), and reads
 the sign of `ApplyStream(amount, contact)` (D-046). The **one** `SmokePuffPool` and the `PlayerMotor` arrive from `Resources.asset` through `ResourceSpawner`, injected into the session and its shells (D-048, G-040).
+`GameplayUiShell` reacts to `GameFlow.StateChanged` (window, restart button, open/close/hover/press tweens) and forwards button clicks to the flow's requests (D-054).
 
-**Boot scene `Assets/_Core/Scenes/FnB_Boot.unity`:** the root `Bootstrapper` alone — no camera, no light. It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is gone (G-003 closed).
+**Boot scene `Assets/_Core/Scenes/FnB_Boot.unity`:** the root `Bootstrapper`, with `Ui` (Canvas – Screen Space Overlay, CanvasScaler, GraphicRaycaster, `GameplayUiShell`) → `PaperPanel` (Image + CanvasGroup) → `TaskText`,
+`ButtonStart`, `ButtonRestart` (each with `UiButtonFeel`), and `EventSystem` (`InputSystemUIInputModule`, G-043) — all children of the persistent root, so the UI survives every reload (D-054). No camera, no light.
+It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is gone (G-003 closed).
 
 **Scene `Assets/_Core/Scenes/FnB_Gameplay.unity`:** `=== System` → `BenchMark` + Main Camera (CinemachineBrain); `=== World` → light + `GrayBox Level` (Ground, `Hydrant` with `HydrantPush` and `PushDirection` pitched −45°, `Slope`, `Reference Cube`), `++ Spawn Points` (`SpawnPoints` +
 `Player Spawn Point`); six root `Burnable` props carry `BurnableShell` with fire/smoke particle chains, and `BenchMark` sprays them. **The `PlayerMotor` clone is spawned at the prefab's own origin, not at the spawn point (B-004).**
@@ -344,4 +348,20 @@ the sign of `ApplyStream(amount, contact)` (D-046). The **one** `SmokePuffPool` 
 - **Why:** A persistent object cannot reference objects of the scene a single-mode load destroys, so a serialized spawn-point reference is null exactly when the session needs it: assets survive the load, scene objects do not.
   Resolving the world once at the load keeps the shell thin and gives Phase 2 a restart with no added state. The boot scene fires `sceneLoaded` for itself, so the handler needs a requested-flag check — an unrequested load
   must not build a session.
+
+## D-053: The pause gate is the composition root, and the input tick moves to it
+- **2026-11-26 · Accepted · the user's call: the input tick moves to the composition root**
+- **Decision:** `GameFlow` (UseCases) holds three states — Briefing, Playing, Paused — and the four requests that move between them; a request that does not match the state is a no-op, and restart returns to Briefing.
+  `Bootstrapper` ticks the input **every frame, with no state check**, so the ESC press fact stays fresh while the world is frozen, and gates the session graph on the state. The input is never registered: the root
+  ticks it ahead of the global list, so the order stays input → player → motor → burn. Restart is the same load door as launch: dispose, **flush the staged removal**, load — and the new load lands on Briefing, so no
+  restart state is kept (G-044).
+- **Why:** A pause must freeze the whole graph, and exactly one object owns that graph, so the gate is a state check on the root, not a second loop. A session that paused itself would have to know the UI; the flow needs
+  no scene, no timer, no flags, no counters (D-042), and it is plain C# — the rules are testable the day the user approves the feel.
+
+## D-054: The launch UI lives under the persistent composition root
+- **2026-11-26 · Accepted**
+- **Decision:** The canvas, the paper panel, the buttons and the EventSystem are children of `Bootstrapper`, so they survive every reload with it, and the shell's references all live inside that subtree. The window
+  shows in Briefing and Paused only; the buttons forward requests to the flow and the shell tweens what the state decided.
+- **Why:** A single-mode load destroys the boot scene's roots, so a UI that is a root dies with the scene it is supposed to restart. Under the root that survives, the UI and its EventSystem persist with no second
+  DontDestroyOnLoad call and no scene lookup.
 

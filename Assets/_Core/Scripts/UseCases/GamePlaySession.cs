@@ -32,14 +32,13 @@ namespace Flame_n_Blame_Challenge.UseCases
             _ownUpdater = new Updater();
             _gameStarted = true;
 
-            _ownUpdater.RegisterUpdatable(_inputs as IUpdatable);
             var player = new Player(_inputs, _gameSettings.Physics, _gameSettings.Control, _pushPresets);
 
             var playerMotor = _resourceSpawner.SpawnPlayer();
             playerMotor.Construct(player);
 
-            // Registration order IS the execution order contract (D-013): input, then the domain that
-            // decides velocity, then the shell that consumes what the domain decided this tick.
+            // Registration order IS the execution order contract (D-013). `PlayerInputMain` is ticked by the
+            // composition root ahead of this list, so the order stays input -> player -> motor -> burn.
             _ownUpdater.RegisterUpdatable(player);
             _ownUpdater.RegisterUpdatable(playerMotor);
 

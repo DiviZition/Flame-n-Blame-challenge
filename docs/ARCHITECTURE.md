@@ -95,7 +95,7 @@ Domain must never reference Application, Adapters, or Drivers.
 
 | Layer | Namespace | Folder | Role |
 |---|---|---|---|
-| Composition | `Flame_n_Blame_Challenge` | `Assets/_Core/Scripts/` | `Bootstrapper`, `GameUpdater` — build the graph, own the tick, and from the boot scene own the load → session lifetime (D-052) |
+| Composition | `Flame_n_Blame_Challenge` | `Assets/_Core/Scripts/` | `Bootstrapper`, `GameUpdater` — build the graph, own the tick, and from the boot scene own the load → session lifetime (D-052); the pause gate that decides whether the tick runs (D-053) |
 | Use Cases | `.UseCases` | `Scripts/UseCases/` | session orchestration (`GamePlaySession`) |
 | Domain | `.Domain` | `Scripts/Domain/` | pure game state & rules |
 | Adapters | `.Adapters` | `Scripts/InterfaceAdapters/` | ports, Unity-side implementations, authored ScriptableObjects |
@@ -147,9 +147,13 @@ Why: D-040…D-048. Traps: G-026, G-027, G-031, G-034, G-035, G-036, G-040.
 - Exactly one Unity `Update()` — `Bootstrapper` → `GameUpdater.Update(time, deltaTime)` → every
   registered `IUpdatable` **in registration order**, which **is** the execution-order contract (never
   Script Execution Order). Safe removal during iteration (staged queue + swap-remove).
-- Today's order in `GamePlaySession.StartGamePlay()`: `PlayerInputMain → Player → PlayerMotor →
-  FireSpreadSystem → BurnableShell[]` — pools constructed first, shells before the spread system sees
-  them; a shell runs **after** the domain, so it consumes what the domain decided this tick (D-013).
+- Today's order: the composition root ticks `PlayerInputMain` itself, ahead of the global updater, then
+  `GamePlaySession.StartGamePlay()` registers `Player → PlayerMotor → BurnableShell[] + FireSpreadSystem` — pools
+  constructed first, shells before the spread system sees them; a shell runs **after** the domain, so it consumes
+  what the domain decided (D-013).
+- The gate: the root ticks the input **every frame, with no state check** and the session graph **only while the
+  flow says Playing**, so a pause fact stays fresh while the world is frozen (D-053). Pausing is one state check,
+  not a second loop. A removal is staged, so a teardown that gates the tick **flushes** the queue (G-044).
 - **No fixed step** (D-018): integration is dt-driven; frame-rate independence is asserted at `dt = 1/60, 1/30, 1/120` within 5%. Re-opens only as a new decision.
 
 ### Unity boundary

@@ -60,6 +60,13 @@ namespace Flame_n_Blame_Challenge.Adapters
             }
         }
 
+        /// A staged removal is applied by the next `UpdateLogic`. A root that gates the tick must flush the
+        /// queue at teardown itself, otherwise a destroyed session's shells stay in the list (G-044).
+        public void Flush()
+        {
+            RemoveStagedUpdatables();
+        }
+
         public void Clear()
         {
             _updatablesToRemove.Clear();
