@@ -90,9 +90,6 @@ change an ID; a superseded rule is named in the title, its Rule compressed, neve
 - **Rule:** Two checks, know which you are reading: **the file** with `asset read_text`, **the live object** with `component get_fields`. Pass a `ScriptableObject` reference as a plain path, not as JSON.
 - Right after `asset write_text`, `get_fields` can read a reference as empty — the loaded object is not reloaded in the same frame, so it is not a witness of the file. YAML references need the full `fileID`/`guid`/`classID` form.
 
-## G-025: `capture` and `set_selection` kill the Pipeline connection (Recorded 2026-11-23, the user's rule: "хватит крашить юнити")
-- **Rule:** The CLI is a **facts** tool — `unity status`, `console get`, `component get_fields`, `asset read_text`, `test run`, `script recompile` touch nothing. A visual check is the user playing, never a CLI capture.
-
 ## G-026: A pooled particle slot that is inactive between plays never plays (Recorded 2026-11-23, D-040)
 - **Rule:** A pooled VFX slot has **two** owners of activation: the pool activates it on spawn (`SetActive(true)`), the prefab's `stopAction = Disable` retires it when the burst ends. `Play()` on an inactive GameObject fails **silently**.
 - Check a pool by counting `activeSelf` children in Play Mode through `script eval`.
