@@ -50,6 +50,8 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   capture): (a) launch direction follows the hydrant's rotation, not the player's facing; (b) the player keeps
   moving after a 2 s preset ends; (c) velocity dies on **landing**, not in mid-air; (d) input steers in flight
   at the reduced air speed; (e) a 0.1 s spray for 3 s **saturates**, not accelerates (B-003).
+- [ ] **Play check:** hand pivots — hands keep the authored distance from the camera at every pitch, IK stays
+  calm; wobble alive, 0/1 read as bone-owned and hard camera lock — D-055, knobs on the Inspector (G-025).
 - [ ] **Fire tests after the feel verdict** (D-026). The lab stand is deleted (D-048), so the look and the
   preset numbers are the user's call, made by playing props that burn.
 - [ ] **Fire spread budget** (D-052): 24 props, adjacency built once at composition (in-range pairs only),
@@ -58,8 +60,7 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   (the user's eyes, G-025), once the stream door and the adjacency land.
 - [ ] **Play check:** fire shows only on unburnt surface — a fully burnt prop keeps just the front line, and
   the eye stays untangled (D-053, the user's eyes, G-025).
-- [ ] **Play check:** the smoke plume peaks mid-heat and settles to half at full burn — the fire reads as
-  dying, not as the prop exhaling at its end (D-054, the user's eyes, G-025).
+- [ ] **Play check:** the smoke plume peaks mid-heat, settles to half at full burn — fire reads as dying (D-054).
 - [ ] **Asmdef housekeeping:** drop the `CartoonFX` vendor-demo reference (an asset-store update can
   delete it and break our compile) and fix the `name` typo `FlameNBlame-asmdf` (G-001, D-014).
 - [ ] **Delete the stray `Player.cs` at repo root** — an untracked copy of

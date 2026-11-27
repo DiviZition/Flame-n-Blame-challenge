@@ -19,17 +19,18 @@ Inside `Domain/` and `InterfaceAdapters/`, entity subfolders `Player/`, `Burnabl
 **Domain:** `Player`, `PlayerMotion`, `PlayerMovement`, `PlayerLookRotator`, `ActivePush`, `PushType`, `IPushPreset`, `ImpulsePresetData`, `SustainedPresetData`, `PushPresetData`, `BurnableSystem` (`IBurnable`, `BurnableObject`, `IBurnablePreset`, `BurnablePreset`), `FireSpreadSystem`, `IHeatSink`.
 
 **Adapters:** ports `IUpdatable`, `IPlayerInput`, `IGameSettings`, `IPhysicsSettings`, `IControlSettings`, `IPushPresets`; `PlayerInputMain`, `GameSettings`, `PhysicsSettings`, `PlayerControlSettings`, `PushPresets`, `ResourceSpawner`, `ResourcesProvider`, `PlayerMotor`, `HydrantPush`,
-`BurnableShell`, `SmokePuffPool`, `GameplayUiShell`, `UiButtonFeel`. **UseCases:** `GamePlaySession`, `GameFlow` + `GameFlowState` (plain C#, no Unity types, D-053).
+`BurnableShell`, `SmokePuffPool`, `ItemSpotsManipulator`, `GameplayUiShell`, `UiButtonFeel`. **UseCases:** `GamePlaySession`, `GameFlow` + `GameFlowState` (plain C#, no Unity types, D-053).
 
 **Authored assets:** `Game Settings.asset` (two references, no numbers), `Physics Settings.asset` (mass, gravity, ground rate, drags, cap, jump carry), `Player Control Settings.asset` (speeds, accelerations, look), `Push Presets.asset` (`[SerializeReference]` list keyed by `PushType`),
 `Resources.asset`.
 
 **Who talks to what:** `Bootstrapper` — in the boot scene, `DontDestroyOnLoad`, the one `Update()` — loads the gameplay scene and builds the session when that scene reports ready, resolving `SpawnPoints` once there (D-052),
 ticks `PlayerInputMain` every frame with no state check, gates the session graph on `GameFlow.State`, drives the flow from the ESC press fact, and flushes the staged removal at teardown (D-053, G-044) →
-`Updater` → registered `IUpdatable` in registration order `Player → PlayerMotor → BurnSystem`, and inside the burn system `FireSpreadSystem → BurnableObject + BurnableShell pairs` (D-013, D-048, D-055). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings,
-IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`, exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A
-source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` is the sink `FireSpreadSystem` streams into (`IHeatSink`), copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, puts
-`_BurnOrigin` on the mesh face the strongest burning neighbour stands on, writes `_BurnExtent` once at the ignition, drives the fire and smoke particle chains (D-051), and reads the sign of `ApplyStream(amount, contact)` (D-046, D-055). The **one** `SmokePuffPool` and the `PlayerMotor` arrive from
+`Updater` → registered `IUpdatable` in registration order `Player → PlayerShell` — the shell forwards in order `Motor → ItemsHandler → ItemSpots`, so the pivots read the camera pose written this tick (D-056) — `→ BurnSystem`,
+and inside the burn system `FireSpreadSystem → BurnableObject + BurnableShell pairs` (D-013, D-048, D-055). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings, IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`,
+exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` is the
+sink `FireSpreadSystem` streams into (`IHeatSink`), copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, puts `_BurnOrigin` on the mesh face the strongest burning neighbour stands on, writes
+`_BurnExtent` once at the ignition, drives the fire and smoke particle chains (D-051), and reads the sign of `ApplyStream(amount, contact)` (D-046, D-055). The **one** `SmokePuffPool` and the `PlayerShell` arrive from
 `Resources.asset` through `ResourceSpawner`, injected into the session and its shells (D-048, G-040).
 `GameplayUiShell` reacts to `GameFlow.StateChanged` (window, restart button, open/close/hover/press tweens) and forwards button clicks to the flow's requests (D-054).
 
@@ -392,4 +393,15 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
 - **Why:** The thickest plume is a mid-hot body eating; a monotonic ramp makes a burnt-out prop exhale the
   biggest column, and the eye reads the fire as dying. Fire motion and the fire ramp are the user's keep,
   and one shared scalar cannot author a plume that differs from the flame.
+
+## D-056: Spot pivots follow the camera by two weights, position rides authored extremes
+- **2026-11-27 · Accepted · extends D-012, D-013 · the feel verdict is the user's play check**
+- **Decision:** One pivot per hand, authored as the parent of the hand spot and the item spot under the bone.
+  Position blends the authored spot on the body toward the camera anchor: camera position plus one authored
+  constant distance, the direction from the authored spot shifted by two extreme deltas lerped on camera pitch
+  — no offset orbit, the pivot rides a fixed-distance sphere so the IK reach never stretches. 0 is bone-owned
+  with noise only, 1 is the hard camera lock; rotation blends the root's yaw toward the camera rotation.
+- **Why:** A rigid camera-frame offset orbits: looking up threw the hands out of IK reach, looking down rose
+  them above the camera. The bone's limb animation once drove the hands under the floor, so the anchor uses
+  bone translation and root yaw only. Pivot children keep item parenting and IK untouched.
 
