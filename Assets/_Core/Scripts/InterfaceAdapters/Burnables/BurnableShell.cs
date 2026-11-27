@@ -19,8 +19,9 @@ namespace Flame_n_Blame_Challenge.Adapters
     /// Authored look numbers (`_BurnReach` = 1, `_EmissionStrength`, `_ShellHeight`) stay in the material.
     ///
     /// The shell is the sink the domain streams into (`IHeatSink`): the spray and the fire spread are the same
-    /// stream, and the fire's mark is the point on the surface the heat arrives at — a spray hit point is
-    /// already on it, a distant burning neighbour is clamped to the face that faces him (D-052).
+    /// stream, and every heat contact lands on the mesh's surface — a spray hit point is already on it, an
+    /// off-body contact is clamped to the face turned to it; that point is the fire's origin and the splash's
+    /// spawn (D-052).
     ///
     /// The material is shared by every burnable, so the numbers travel in a `MaterialPropertyBlock`: 24
     /// objects, one shader variant (D-040, the WebGL budget in TODO.md).
@@ -189,25 +190,27 @@ namespace Flame_n_Blame_Challenge.Adapters
 
         /// One stream contact, from the spray or from the fire spread (`IHeatSink`). **The sign picks which
         /// cosmetic fact it is, and that mapping is the shell's business** (the fire rules are the domain's,
-        /// D-046, G-036): fire carries the contact to the ignition, water plays the splash at the contact and
-        /// leaves the point alone. No point (rain, a room-wide soak) means the centre. The origin itself is
-        /// written at the ignition, in `UpdateLogic`. Puff count and capacity are the pool's business, and the
-        /// splash plays at the pool's full scale: the axis has no water-strength number, the amount is heat,
-        /// not volume.
+        /// D-046, G-036): fire carries the contact to the ignition, water plays the splash at the contact.
+        /// **The contact is clamped to the mesh's surface for both** — a spray hit point is already on it, an
+        /// off-body contact lands the splash on the face turned to it, same clamp as the origin. No point
+        /// (rain, a room-wide soak) means the centre. The origin itself is written at the ignition, in
+        /// `UpdateLogic`. Puff count and capacity are the pool's business, and the splash plays at the pool's
+        /// full scale: the axis has no water-strength number, the amount is heat, not volume.
         public void ApplyStream(float amount, Vector3? contactPoint)
         {
             if (_burnable == null)
                 return;
 
             Vector3 worldPoint = contactPoint.HasValue ? contactPoint.Value : transform.position;
+            Vector3 surfaceLocal = SurfacePointLocal(worldPoint);
 
             if (amount < 0f)
             {
                 if (_puffPool != null)
-                    _puffPool.Spawn(worldPoint, 1f);
+                    _puffPool.Spawn(transform.TransformPoint(surfaceLocal), 1f);
             }
             else if (contactPoint.HasValue && !_originLocked)
-                _burnPointLocal = SurfacePointLocal(worldPoint);
+                _burnPointLocal = surfaceLocal;
 
             _burnable.AffectIgnitionStrength(amount);
         }

@@ -366,12 +366,11 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
   DontDestroyOnLoad call and no scene lookup.
 ## D-055: The spread streams heat through the shell's door and names the strongest neighbour
 - **2026-11-27 · Accepted · extends D-046; the spread clause of D-043 rewritten**
-- **Decision:** Spread heat goes out through `IHeatSink.ApplyStream(amount, contactPoint)` — the **same door the
-  spray uses** — not into a body the shell cannot see. A visit names the **strongest** in-range neighbour: who
-  heats me is a fact about the fire, so the shell puts the char front on the mesh face turned to him, clamped
-  to the mesh box the shell owns. `IBurnable` gains one number, `MaxFirePopulationRange`, the pair test the
-  adjacency is built with; the table is built once, props never move. Order: spread → body → shell.
+- **Decision:** Spread heat goes out through `IHeatSink.ApplyStream(amount, contactPoint)`, the **same door the
+  spray uses**, and a visit names the **strongest** in-range neighbour — who heats me is a fire fact, so the
+  char front goes on the mesh face turned to him. Every contact is clamped to the shell's mesh box, and that
+  surface point is the origin and the splash spawn together: no puff floats off the prop. `IBurnable` gains
+  `MaxFirePopulationRange`, the pair test the adjacency table is built with. Order: spread → body → shell.
 - **Why:** A list of affectors in `IBurnable` is domain data the domain never reads (D-047), and a shell that
-  picks the strongest neighbour is a shell with rules (D-012). Fire direction is not a visual concept, so the
-  fact lives in the spread; mapping a direction to a point is geometry, which D-046 already gives the shell.
+  picks the strongest neighbour is a shell with rules (D-012); mapping a direction to a point is geometry, D-046.
 
