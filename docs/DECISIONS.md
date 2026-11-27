@@ -374,3 +374,12 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
 - **Why:** A list of affectors in `IBurnable` is domain data the domain never reads (D-047), and a shell that
   picks the strongest neighbour is a shell with rules (D-012); mapping a direction to a point is geometry, D-046.
 
+## D-053: The flame lives only on unburnt surface
+- **2026-11-27 · Accepted · extends D-041 · the look verdict is the user's play check**
+- **Decision:** The char paint covers the flame: the surface `fireMask` and the shell's tongue are both cut by
+  `1 - burnt`, so fire shows only where the front has not eaten, a fully burnt prop carries fire at the front
+  line only, and no flame ever draws over black. Particle chains are not masked — they are the shell's
+  business, scaled on `Charredness` — the next lever if the eye still tangles.
+- **Why:** Flame over char tangles the eye: the front line already tells where the fire eats, so a flame drawn
+  on dead paint adds a fact the fire does not have. One multiply per pass, no new uniforms, one variant.
+

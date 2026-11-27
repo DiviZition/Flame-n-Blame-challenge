@@ -56,6 +56,8 @@ done on web. Until B-001 is fixed the honest line is *editor-verified, web-unver
   6 visits a frame × ~8 neighbours ≈ 48 table reads, no distance, no per-frame allocation.
 - [ ] **Play check:** a prop ignited by a neighbour starts its char front on the face turned to that fire
   (the user's eyes, G-025), once the stream door and the adjacency land.
+- [ ] **Play check:** fire shows only on unburnt surface — a fully burnt prop keeps just the front line, and
+  the eye stays untangled (D-053, the user's eyes, G-025).
 - [ ] **Asmdef housekeeping:** drop the `CartoonFX` vendor-demo reference (an asset-store update can
   delete it and break our compile) and fix the `name` typo `FlameNBlame-asmdf` (G-001, D-014).
 - [ ] **Delete the stray `Player.cs` at repo root** — an untracked copy of

@@ -19,7 +19,8 @@
 //
 // The flame lattice cuts every cell with a **random convex polygon**: the intersection of `_FlamePolySides`
 // half-planes at random angles and distances, so a flame hole is a cornered N-gon — never a square, never a
-// circle.
+// circle. **The flame lives only on unburnt surface**: the char paint covers it, so `1 - burnt` masks both the
+// surface flame and the shell's tongues, and a fully burnt prop carries fire at the front line only (D-053).
 Shader "FnB/Burnable Stylized"
 {
     Properties
@@ -346,8 +347,12 @@ Shader "FnB/Burnable Stylized"
                 float noise, presence, shape;
                 FlameAt(input.positionOS.xyz, vertical, noise, presence, shape);
 
+                // The tongue is cut by the same unburnt mask as the surface flame: the extrusion starts on the
+                // hull's own surface point, so the coverage is read there (D-053).
                 float levels = max(_ShellLevels, 1.0);
-                float tongue = floor(saturate(_Fire * 1.2 - noise * 0.9) * levels) / levels * shape;
+                float shellBurnt = step(0.0001, BurnCoverage(input.positionOS.xyz));
+                float tongue = floor(saturate(_Fire * 1.2 - noise * 0.9) * levels) / levels * shape
+                    * (1.0 - shellBurnt);
 
                 output.positionOS = input.positionOS.xyz + input.normalOS * (_ShellBase + _ShellHeight * tongue * vertical);
                 output.tongue = tongue;
@@ -469,7 +474,7 @@ Shader "FnB/Burnable Stylized"
                 float vertical = saturate(input.positionOS.y / extent + 0.5);
                 float noise, presence, shape;
                 FlameAt(input.positionOS, vertical, noise, presence, shape);
-                float fireMask = presence * shape;
+                float fireMask = presence * shape * (1.0 - burnt);
                 float flameT = floor(saturate(fireMask * 2.0 - 0.6) * flameLevels) / flameLevels;
 
                 float3 flame = fireMask * lerp(_FireColor.rgb, _FlareColor.rgb, flameT);
