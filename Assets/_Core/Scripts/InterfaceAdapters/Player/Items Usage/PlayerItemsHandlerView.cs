@@ -44,8 +44,6 @@ namespace Flame_n_Blame_Challenge.Adapters
                 throw new ArgumentNullException($"Item handler domain is trying to equip an Item without the view. Do not pass IHoldables to domain from aside, please");
             
             var newItemParent = _hands[side].ItemSpot;
-            var newItemPos = itemView.PositionOffset;
-            var newItemRotation = Quaternion.Euler(itemView.RotationOffset);
 
             itemView.DisableCollision();
             itemView.StopHighlighting();
@@ -54,8 +52,8 @@ namespace Flame_n_Blame_Challenge.Adapters
             _animations.HideHand(side);
 
             Sequence.Create()
-                .Group(Tween.LocalPosition(itemView.Transform, newItemPos, itemView.EquipTime, Ease.OutQuad))
-                .Group(Tween.LocalRotation(itemView.Transform, newItemRotation, itemView.EquipTime, Ease.OutQuad));
+                .Group(Tween.LocalPosition(itemView.Transform, Vector3.zero, itemView.EquipTime, Ease.OutQuad))
+                .Group(Tween.LocalRotation(itemView.Transform, Quaternion.identity, itemView.EquipTime, Ease.OutQuad));
         }
 
         private void DetectAvailableItems()

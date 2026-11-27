@@ -257,13 +257,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2538178563804310261}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.65, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0.13052624, w: 0.9914449}
+  m_LocalPosition: {x: -0.25, y: -0.65, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7024085517884807027}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: -15}
 --- !u!1 &2897371010692104570
 GameObject:
   m_ObjectHideFlags: 0
@@ -742,13 +742,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6426083864833614471}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.65, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: 0.13052616, w: 0.9914449}
+  m_LocalPosition: {x: 0.25, y: -0.65, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7502148051919044440}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 15}
 --- !u!1 &6524084950224514802
 GameObject:
   m_ObjectHideFlags: 0
@@ -990,11 +990,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.PlayerItemsHandlerView
   _rightHand:
-    <ItemSpot>k__BackingField: {fileID: 7502148051919044440}
-    <HandIKSpot>k__BackingField: {fileID: 7502148051919044440}
+    <ItemSpot>k__BackingField: {fileID: 2986202959722244153}
   _leftHand:
-    <ItemSpot>k__BackingField: {fileID: 7024085517884807027}
-    <HandIKSpot>k__BackingField: {fileID: 7024085517884807027}
+    <ItemSpot>k__BackingField: {fileID: 1922921695947008339}
   _detectionRadius: 0.5
   _detectionRange: 1.2
   _cameraTransform: {fileID: 747750127075177749}

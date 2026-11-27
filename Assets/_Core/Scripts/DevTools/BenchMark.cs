@@ -26,10 +26,6 @@ public class BenchMark : MonoBehaviour
     {
         if (_item == null || _itemSpot == null || _holder == null)
             return;
-
-        _itemSpot.SetParent(_holder);
-        _itemSpot.localPosition = _item.PositionOffset;
-        _itemSpot.localRotation = Quaternion.Euler(_item.RotationOffset);
     }
 
     #region Benchmark implementation
