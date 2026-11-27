@@ -7,6 +7,9 @@ namespace Flame_n_Blame_Challenge.Adapters
         [field: SerializeField] public Transform Transform { get; private set; }
         [field: SerializeField] public float EquipTime { get; private set; } = 1;
 
+        [field: SerializeField] public Vector3 PositionOffset { get; private set; }
+        [field: SerializeField] public Vector3 RotationOffset { get; private set; }
+
         [SerializeField] private Outline _outline;
         [SerializeField] private Collider _collider;
         [SerializeField] private Rigidbody _rigidbody;

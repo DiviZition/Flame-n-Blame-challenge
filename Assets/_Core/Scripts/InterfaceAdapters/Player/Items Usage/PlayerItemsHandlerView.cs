@@ -16,6 +16,7 @@ namespace Flame_n_Blame_Challenge.Adapters
         [SerializeField] private float _detectionRange = 2.0f;
         [SerializeField] private Transform _cameraTransform;
         [SerializeField] private LayerMask _itemsMask;
+        [SerializeField] private PlayerAnimations _animations;
 
         private IItemView _availableItem;
         private Dictionary<HandSide, ViewHandData> _hands;
@@ -28,6 +29,8 @@ namespace Flame_n_Blame_Challenge.Adapters
             _player = player;
 
             _player.ItemsHandler.OnItemPickedUp += PickUpItem;
+
+
         }
 
         public void UpdateLogic(float time, float deltaTime)
@@ -37,16 +40,22 @@ namespace Flame_n_Blame_Challenge.Adapters
 
         private void PickUpItem(HandSide side, IHoldable holdable)
         {
-            var newItemPos = _hands[side].ItemSpot;
             if (holdable is not IItemView itemView)
                 throw new ArgumentNullException($"Item handler domain is trying to equip an Item without the view. Do not pass IHoldables to domain from aside, please");
+            
+            var newItemParent = _hands[side].ItemSpot;
+            var newItemPos = itemView.PositionOffset;
+            var newItemRotation = Quaternion.Euler(itemView.RotationOffset);
 
             itemView.DisableCollision();
             itemView.StopHighlighting();
+            itemView.Transform.SetParent(newItemParent);
+
+            _animations.HideHand(side);
 
             Sequence.Create()
-                .Group(Tween.Position(itemView.Transform, newItemPos.position, itemView.EquipTime, Ease.OutCubic))
-                .Group(Tween.Rotation(itemView.Transform, newItemPos.rotation, itemView.EquipTime, Ease.OutCubic));
+                .Group(Tween.LocalPosition(itemView.Transform, newItemPos, itemView.EquipTime, Ease.OutQuad))
+                .Group(Tween.LocalRotation(itemView.Transform, newItemRotation, itemView.EquipTime, Ease.OutQuad));
         }
 
         private void DetectAvailableItems()
@@ -80,6 +89,13 @@ namespace Flame_n_Blame_Challenge.Adapters
         {
             _availableItem?.StopHighlighting();
             _availableItem = null;
+        }
+
+        [Serializable]
+        public class ViewHandData
+        {
+            [field: SerializeField] public Transform ItemSpot { get; private set; }
+            [field: SerializeField] public IItemView ItemView { get; private set; }
         }
     }
 }
