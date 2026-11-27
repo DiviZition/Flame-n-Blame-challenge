@@ -56,9 +56,9 @@ Material:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _BurnOrigin: {r: -0.5, g: 0, b: 0, a: 0}
     - _CharColor: {r: 0.32, g: 0.3, b: 0.28, a: 1}
-    - _FireColor: {r: 1, g: 0.45, b: 0.1, a: 1}
-    - _FlareColor: {r: 0.745283, g: 0.6554107, b: 0.18632075, a: 1}
-    - _GlowColor: {r: 1, g: 0.35, b: 0.08, a: 1}
+    - _FireColor: {r: 0.1792453, g: 0.03215532, b: 0.02959238, a: 1}
+    - _FlareColor: {r: 0.16981131, g: 0.04952503, b: 0.008810964, a: 1}
+    - _GlowColor: {r: 0.26415092, g: 0.041401014, b: 0.0062299734, a: 1}
     - _OutlineColor: {r: 0.08, g: 0.08, b: 0.08, a: 1}
     - _ShellColor: {r: 2.6, g: 1.1, b: 0.35, a: 1}
   m_BuildTextureStacks: []

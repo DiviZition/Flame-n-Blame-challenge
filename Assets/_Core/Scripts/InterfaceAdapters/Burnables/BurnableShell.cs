@@ -55,15 +55,10 @@ namespace Flame_n_Blame_Challenge.Adapters
         [SerializeField] private float _smokeParticlesPerSecond = 14f;
         [Tooltip("Fire particle scale at Charredness 0, per axis — the scale the fire starts at, as a share "
             + "of the authored scale."), SerializeField]
-        private Vector3 _fireMinScale = new Vector3(0.2f, 0.2f, 0.2f);
-        [Tooltip("Fire particle scale at Charredness 1, per axis. The roots travel from the burn point to "
-            + "the mesh centre on the same axis."), SerializeField]
-        private Vector3 _fireMaxScale = Vector3.one;
+        private Vector2 _fireScaleRange = new Vector2(0.2f, 0.2f);
+
         [Tooltip("Smoke particle scale at heat 0, per axis."), SerializeField]
-        private Vector3 _smokeMinScale = new Vector3(0.2f, 0.2f, 0.2f);
-        [Tooltip("Smoke particle scale at heat 0.5 — the peak of the plume, per axis; heat 1 settles to the "
-            + "midpoint between the two."), SerializeField]
-        private Vector3 _smokeMaxScale = Vector3.one;
+        private Vector2 _smokeScaleRange = new Vector2(0.2f, 0.2f);
 
         #region Readonly Info
 #if UNITY_EDITOR
@@ -267,10 +262,8 @@ namespace Flame_n_Blame_Challenge.Adapters
             CopyEmission(_smokeParticles, _smokeParticlesPerSecond,
                 _burnable.IsBurnedOut ? 0f : _burnable.IgnitionStrength);
 
-            MoveChain(_fireChain, _fireBaseScales, _burnable.Charredness,
-                Vector3.Lerp(_fireMinScale, _fireMaxScale, _burnable.Charredness));
-            MoveChain(_smokeChain, _smokeBaseScales, _burnable.Charredness,
-                SmokeScale(_burnable.IgnitionStrength));
+            MoveChain(_fireChain, _fireBaseScales, _burnable.Charredness, Mathf.Lerp(_fireScaleRange.x , _fireScaleRange.y, _burnable.Charredness));
+            MoveChain(_smokeChain, _smokeBaseScales, _burnable.Charredness, SmokeScale(_burnable.IgnitionStrength));
 
             if (_burnable.IsBurnedOut && _burnRoot != null)
                 _burnRoot.SetActive(false);
@@ -299,7 +292,7 @@ namespace Flame_n_Blame_Challenge.Adapters
         /// scale, so the authored scale of each is multiplied by the ramp the caller gives, component by
         /// component. `Charredness` 0 is the ignition, so a warming body sits at the burn point at min scale
         /// and does not move.
-        private void MoveChain(Transform[] chain, Vector3[] baseScales, float charredness, Vector3 scale)
+        private void MoveChain(Transform[] chain, Vector3[] baseScales, float charredness, float scale)
         {
             if (chain.Length == 0)
                 return;
@@ -307,16 +300,16 @@ namespace Flame_n_Blame_Challenge.Adapters
             chain[0].localPosition = Vector3.Lerp(_burnPointLocal, _centerLocal, charredness);
 
             for (int i = 0; i < chain.Length; i++)
-                chain[i].localScale = Vector3.Scale(baseScales[i], scale);
+                chain[i].localScale = Vector3.Scale(baseScales[i], Vector3.one * scale);
         }
 
         /// The smoke ramp: the plume grows with the heat to `_smokeMaxScale` at heat 0.5, then settles to the
         /// midpoint at heat 1 — the thickest column is the mid-hot body eating, a burnt-out prop exhales at
         /// half, not at the peak (D-054).
-        private Vector3 SmokeScale(float heat)
+        private float SmokeScale(float heat)
         {
             float ramp = heat < 0.5f ? heat * 2f : 1.5f - heat;
-            return _smokeMinScale + (_smokeMaxScale - _smokeMinScale) * ramp;
+            return _smokeScaleRange.x + (_smokeScaleRange.y - _smokeScaleRange.x) * ramp;
         }
 
         /// Geometry travels once per object, never per frame.

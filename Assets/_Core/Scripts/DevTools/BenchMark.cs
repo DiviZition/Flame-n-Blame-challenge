@@ -10,20 +10,26 @@ using UnityEditor;
 
 public class BenchMark : MonoBehaviour
 {
-    public Transform _transform;
-    public Transform _transform2;
+    public BurnableShell _burnable;
+    public ExtinguisherItem _item;
+
+    public Transform _itemSpot;
+    public Transform _holder;
     public float value;
 
     private void TestAction()
     {
+        _burnable.ApplyStream(value, this.transform.position);
     }
 
     private void Update()
     {
-        if (_transform == null || _transform2 == null)
+        if (_item == null || _itemSpot == null || _holder == null)
             return;
 
-        _transform2.position = _transform.position;
+        _itemSpot.SetParent(_holder);
+        _itemSpot.localPosition = _item.PositionOffset;
+        _itemSpot.localRotation = Quaternion.Euler(_item.RotationOffset);
     }
 
     #region Benchmark implementation
