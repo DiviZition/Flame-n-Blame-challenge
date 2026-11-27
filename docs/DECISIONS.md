@@ -383,11 +383,13 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
 - **Why:** Flame over char tangles the eye: the front line already tells where the fire eats, so a flame drawn
   on dead paint adds a fact the fire does not have. One multiply per pass, no new uniforms, one variant.
 
-## D-054: Smoke peaks at mid heat and settles to half
+## D-054: Smoke peaks at mid heat, and the two chains own their ramps
 - **2026-11-27 · Accepted · extends D-051 · the look verdict is the user's play check**
 - **Decision:** The smoke chain keeps its travel on `Charredness`, and its scale ramp moves to the heat axis:
-  min at heat 0, `maxScale` at heat 0.5, midpoint at heat 1. The fire chain stays as accepted — its scale
-  ramps with `Charredness`, its emission with `FireLevel`.
+  `_smokeMinScale` at heat 0, `_smokeMaxScale` at heat 0.5, midpoint at heat 1. The fire chain stays as
+  accepted — its scale ramps with `Charredness`, its emission with `FireLevel`. Each chain owns its min and
+  max as its own Vector3s, so fire and smoke are authored apart, axis by axis.
 - **Why:** The thickest plume is a mid-hot body eating; a monotonic ramp makes a burnt-out prop exhale the
-  biggest column, and the eye reads the fire as dying. Fire motion and the fire ramp are the user's keep.
+  biggest column, and the eye reads the fire as dying. Fire motion and the fire ramp are the user's keep,
+  and one shared scalar cannot author a plume that differs from the flame.
 
