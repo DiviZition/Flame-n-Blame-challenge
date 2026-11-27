@@ -26,7 +26,7 @@ Inside `Domain/` and `InterfaceAdapters/`, entity subfolders `Player/`, `Burnabl
 
 **Who talks to what:** `Bootstrapper` — in the boot scene, `DontDestroyOnLoad`, the one `Update()` — loads the gameplay scene and builds the session when that scene reports ready, resolving `SpawnPoints` once there (D-052),
 ticks `PlayerInputMain` every frame with no state check, gates the session graph on `GameFlow.State`, drives the flow from the ESC press fact, and flushes the staged removal at teardown (D-053, G-044) →
-`Updater` → registered `IUpdatable` in registration order `Player → PlayerShell` — the shell forwards in order `Motor → ItemsHandler → ItemSpots`, so the pivots read the camera pose written this tick (D-056) — `→ BurnSystem`,
+`Updater` → registered `IUpdatable` in registration order `Player → PlayerShell` — the shell forwards in order `Motor → ItemsHandler → ItemSpots`, so the pivots read the camera pose written this tick (D-058) — `→ BurnSystem`,
 and inside the burn system `FireSpreadSystem → BurnableObject + BurnableShell pairs` (D-013, D-048, D-055). `Player` composes `PlayerMotion(PlayerMovement, IPhysicsSettings, IControlSettings, IPushPresets)`, forwards `ReceivePush(preset, direction)` and `ReportContact(grounded, normal)`,
 exposes `Velocity`; `PlayerMotor` shells `Move(Velocity * dt)` and the contact normal from `OnControllerColliderHit`; `HydrantPush` shells a trigger → `ApplyForce(preset, PushDirection.forward)`. A source decides **whether** to fire, `PlayerMotion` what a fired push does (D-016). `BurnableShell` is the
 sink `FireSpreadSystem` streams into (`IHeatSink`), copies `Charredness` → `_Burn` and `FireLevel` → `_Fire` into the shared material, puts `_BurnOrigin` on the mesh face the strongest burning neighbour stands on, writes
@@ -375,7 +375,7 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
 - **Why:** A list of affectors in `IBurnable` is domain data the domain never reads (D-047), and a shell that
   picks the strongest neighbour is a shell with rules (D-012); mapping a direction to a point is geometry, D-046.
 
-## D-053: The flame lives only on unburnt surface
+## D-056: The flame lives only on unburnt surface
 - **2026-11-27 · Accepted · extends D-041 · the look verdict is the user's play check**
 - **Decision:** The char paint covers the flame: the surface `fireMask` and the shell's tongue are both cut by
   `1 - burnt`, so fire shows only where the front has not eaten, a fully burnt prop carries fire at the front
@@ -384,7 +384,7 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
 - **Why:** Flame over char tangles the eye: the front line already tells where the fire eats, so a flame drawn
   on dead paint adds a fact the fire does not have. One multiply per pass, no new uniforms, one variant.
 
-## D-054: Smoke peaks at mid heat, and the two chains own their ramps
+## D-057: Smoke peaks at mid heat, and the two chains own their ramps
 - **2026-11-27 · Accepted · extends D-051 · the look verdict is the user's play check**
 - **Decision:** The smoke chain keeps its travel on `Charredness`, and its scale ramp moves to the heat axis:
   `_smokeMinScale` at heat 0, `_smokeMaxScale` at heat 0.5, midpoint at heat 1. The fire chain stays as
@@ -394,7 +394,7 @@ It is build index 0, `FnB_Gameplay` index 1, the stale `SampleScene` entry is go
   biggest column, and the eye reads the fire as dying. Fire motion and the fire ramp are the user's keep,
   and one shared scalar cannot author a plume that differs from the flame.
 
-## D-056: Spot pivots follow the camera by two weights, position rides authored extremes
+## D-058: Spot pivots follow the camera by two weights, position rides authored extremes
 - **2026-11-27 · Accepted · extends D-012, D-013 · the feel verdict is the user's play check**
 - **Decision:** One pivot per hand, authored as the parent of the hand spot and the item spot under the bone.
   Position blends the authored spot on the body toward the camera anchor: camera position plus one authored
