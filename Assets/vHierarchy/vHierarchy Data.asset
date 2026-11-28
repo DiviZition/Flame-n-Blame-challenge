@@ -71,3 +71,4 @@ MonoBehaviour:
   bookmarks: []
   bookmarkedScenePaths:
   - Assets/_Core/Scenes/FnB_Gameplay.unity
+  - Assets/_Core/Scenes/FnB_Boot.unity
