@@ -138,7 +138,7 @@ Transform:
   m_GameObject: {fileID: 1868030266574637288}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.8, z: -1.028}
+  m_LocalPosition: {x: 0, y: 1.104, z: -0.298}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -154,7 +154,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3652141108119537753}
   m_Layer: 0
-  m_Name: Hint
+  m_Name: R IK Hint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -168,8 +168,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2183003236258637014}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.49100018, y: 1.142, z: -0.14600003}
+  m_LocalRotation: {x: 0.65798205, y: -0.27563968, z: -0.28402263, w: 0.64063525}
+  m_LocalPosition: {x: 0.49100018, y: 1.037, z: -0.394}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -200,7 +200,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2240207209855180265}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -384,7 +384,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4630321000633634560}
   m_Layer: 0
-  m_Name: Hint
+  m_Name: L IK Hint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -398,8 +398,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3237062768321625524}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.49100018, y: 1.142, z: -0.14600003}
+  m_LocalRotation: {x: 0.6579808, y: 0.27563745, z: 0.28402352, w: 0.64063716}
+  m_LocalPosition: {x: -0.49100018, y: 1.037, z: -0.394}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -711,7 +711,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6335686031471246627}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.65798086, y: 0.27563745, z: 0.28402355, w: 0.64063716}
+  m_LocalRotation: {x: 0.6579808, y: 0.27563742, z: 0.28402352, w: 0.6406371}
   m_LocalPosition: {x: -0.3925922, y: 1.1651144, z: 0.30189645}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -972,11 +972,15 @@ MonoBehaviour:
   _animator: {fileID: 5974265237381531348}
   _motor: {fileID: 1848458353417603451}
   _smoothSpeed: 4
-  _hiddenHandsSpot: {fileID: 9206023938837988608}
+  _ikFallowSpeed: 4
   _leftIKHandRefs:
     <IKTarget>k__BackingField: {fileID: 5466746735470007289}
+    <InitialIKReference>k__BackingField: {fileID: 3095271570959334428}
+    <HiddenIKSpot>k__BackingField: {fileID: 4630321000633634560}
   _rightIKHandRefs:
     <IKTarget>k__BackingField: {fileID: 1614455343567861004}
+    <InitialIKReference>k__BackingField: {fileID: 1469603856269879293}
+    <HiddenIKSpot>k__BackingField: {fileID: 3652141108119537753}
 --- !u!114 &4634927821799141305
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -29,8 +29,7 @@ namespace Flame_n_Blame_Challenge.Adapters
             _player = player;
 
             _player.ItemsHandler.OnItemPickedUp += PickUpItem;
-
-
+            _player.ItemsHandler.OnItemDropped += DropItem;
         }
 
         public void UpdateLogic(float time, float deltaTime)
@@ -38,16 +37,28 @@ namespace Flame_n_Blame_Challenge.Adapters
             DetectAvailableItems();
         }
 
+        private void DropItem(HandSide side)
+        {
+            ViewHandData item = _hands[side];
+
+            if (item.ItemView == null)
+                return;
+
+            item.ItemView.EnableCollision();
+            item.ItemView.Transform.SetParent(null);
+            _animations.UnHideHand(side);
+        }
+
         private void PickUpItem(HandSide side, IHoldable holdable)
         {
             if (holdable is not IItemView itemView)
                 throw new ArgumentNullException($"Item handler domain is trying to equip an Item without the view. Do not pass IHoldables to domain from aside, please");
-            
-            var newItemParent = _hands[side].ItemSpot;
+
+            _hands[side].ItemView = itemView;
 
             itemView.DisableCollision();
             itemView.StopHighlighting();
-            itemView.Transform.SetParent(newItemParent);
+            itemView.Transform.SetParent(_hands[side].ItemSpot);
 
             _animations.HideHand(side);
 
@@ -93,7 +104,7 @@ namespace Flame_n_Blame_Challenge.Adapters
         public class ViewHandData
         {
             [field: SerializeField] public Transform ItemSpot { get; private set; }
-            [field: SerializeField] public IItemView ItemView { get; private set; }
+            public IItemView ItemView;
         }
     }
 }

@@ -3,6 +3,7 @@ using Flame_n_Blame_Challenge.Domain;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Assemblies;
 
 namespace Flame_n_Blame_Challenge
 {
@@ -11,8 +12,8 @@ namespace Flame_n_Blame_Challenge
         [SerializeField] private Animator _animator;
         [SerializeField] private PlayerMotor _motor;
         [SerializeField] private float _smoothSpeed = 10f;
+        [SerializeField] private float _ikFallowSpeed = 2f;
 
-        [SerializeField] private Transform _hiddenHandsSpot;
         [SerializeField] private HandIKRefs _leftIKHandRefs;
         [SerializeField] private HandIKRefs _rightIKHandRefs;
 
@@ -25,6 +26,8 @@ namespace Flame_n_Blame_Challenge
             _handRefs = new Dictionary<HandSide, HandIKRefs>(2);
             _handRefs.Add(HandSide.Left, _leftIKHandRefs);
             _handRefs.Add(HandSide.Right, _rightIKHandRefs);
+            _leftIKHandRefs.CurrentReference = _leftIKHandRefs.InitialIKReference;
+            _rightIKHandRefs.CurrentReference = _rightIKHandRefs.InitialIKReference;
         }
 
         private void Update()
@@ -33,6 +36,8 @@ namespace Flame_n_Blame_Challenge
             // MoveTowards gives one in finite time and reaches exact zero, so IsWalking turns off
             // only when the ramp is done.
             _smoothedInput = Vector2.MoveTowards(_smoothedInput, _motor.InputDirection, _smoothSpeed * Time.deltaTime);
+            UpdateHandIKTransform(_handRefs[HandSide.Left]);
+            UpdateHandIKTransform(_handRefs[HandSide.Right]);
 
             _animator.SetBool("IsRunning", _motor.isSprinting);
             _animator.SetBool("IsGrounded", _motor.IsGrounded);
@@ -43,35 +48,41 @@ namespace Flame_n_Blame_Challenge
 
         public void UnHideHand(HandSide handSide)
         {
-            Transform handIK = _handRefs[handSide].IKTarget;
-            Transform previousParent = _handRefs[handSide].PreviousParent;
-
-            if (previousParent == null || handIK.parent == previousParent)
+            Debug.Log($"New current target - {_handRefs[handSide].PreviousReference}");
+            if (_handRefs[handSide].PreviousReference == null)
                 return;
 
-            handIK.SetParent(previousParent);
-            handIK.localPosition = Vector3.zero;
-            previousParent = null;
+            _handRefs[handSide].CurrentReference = _handRefs[handSide].PreviousReference;
         }
 
         public void HideHand(HandSide handSide)
         {
-            Transform handIK = _handRefs[handSide].IKTarget;
-            Transform previousParent = _handRefs[handSide].PreviousParent;
-
-            if (handIK.parent == _hiddenHandsSpot)
+            if (_handRefs[handSide].CurrentReference == _handRefs[handSide].HiddenIKSpot)
                 return;
 
-            previousParent = handIK.parent;
-            handIK.SetParent(_hiddenHandsSpot);
-            handIK.localPosition = Vector3.zero;
+            _handRefs[handSide].PreviousReference = _handRefs[handSide].CurrentReference;
+            _handRefs[handSide].CurrentReference = _handRefs[handSide].HiddenIKSpot;
+        }
+
+        private void UpdateHandIKTransform(HandIKRefs handRef)
+        {
+            if (handRef.CurrentReference == null)
+                return;
+
+            Vector3 position = Vector3.MoveTowards(handRef.IKTarget.position, handRef.CurrentReference.position, _ikFallowSpeed * Time.deltaTime);
+            handRef.IKTarget.position = position;
+            Quaternion rotation = Quaternion.Lerp(handRef.IKTarget.rotation, handRef.CurrentReference.rotation, _ikFallowSpeed * Time.deltaTime);
+            handRef.IKTarget.rotation = rotation;
         }
 
         [Serializable]
         public class HandIKRefs
         {
-            [field: SerializeField] public Transform IKTarget {  get; private set; }
-            public Transform PreviousParent { get; set; }
+            [field: SerializeField] public Transform IKTarget { get; private set; }
+            [field: SerializeField] public Transform InitialIKReference { get; private set; }
+            [field: SerializeField] public Transform HiddenIKSpot { get; private set; }
+            public Transform PreviousReference { get; set; }
+            public Transform CurrentReference { get; set; }
         }
     }
 }
