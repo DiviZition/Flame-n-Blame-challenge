@@ -7,9 +7,9 @@ namespace Flame_n_Blame_Challenge.Domain
     /// authored surface with no reader (D-033).
     public enum PushType
     {
-        HydrantPush,
-        ExtinguisherShove,
-        PlayerJump,
-        ExtinguisherKick,
+        PlayerJump = 0,
+        ExtinguisherWeak = 1,
+        ExtinguisherStrong = 2,
+        HydrantPush = 3,
     }
 }

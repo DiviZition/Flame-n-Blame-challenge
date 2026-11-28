@@ -246,7 +246,7 @@ namespace Flame_n_Blame_Challenge.Tests
             for (int tick = 0; tick < ticks; tick++)
             {
                 if (tick % refireEvery == 0)
-                    _motion.ApplyPush(Presets.Sustained(PushType.ExtinguisherShove, force, 0.1f),
+                    _motion.ApplyPush(Presets.Sustained(PushType.ExtinguisherWeak, force, 0.1f),
                         Vector3.forward);
 
                 TickOnce(false, Vector3.zero);

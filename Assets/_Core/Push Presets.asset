@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: FlameNBlame::Flame_n_Blame_Challenge.Adapters.PushPresets
   _presets:
   - rid: 2399684603334099059
-  - rid: 2399684603334099060
   - rid: 2399684603334099063
+  - rid: 2399684603334099060
   - rid: 2399684603334099062
   references:
     version: 2
@@ -23,7 +23,7 @@ MonoBehaviour:
     - rid: 2399684603334099059
       type: {class: SustainedPresetData, ns: Flame_n_Blame_Challenge.Domain, asm: FlameNBlame}
       data:
-        _type: 0
+        _type: 3
         _force: 4500
         _curve:
           serializedVersion: 2
@@ -54,7 +54,7 @@ MonoBehaviour:
       type: {class: SustainedPresetData, ns: Flame_n_Blame_Challenge.Domain, asm: FlameNBlame}
       data:
         _type: 1
-        _force: 300
+        _force: 1000
         _curve:
           serializedVersion: 2
           m_Curve:
@@ -69,7 +69,7 @@ MonoBehaviour:
             outWeight: 0
           - serializedVersion: 3
             time: 1
-            value: 1
+            value: 0
             inSlope: 0
             outSlope: 0
             tangentMode: 0
@@ -79,7 +79,7 @@ MonoBehaviour:
           m_PreInfinity: 2
           m_PostInfinity: 2
           m_RotationOrder: 4
-        _duration: 0.1
+        _duration: 0.3
     - rid: 2399684603334099062
       type: {class: ImpulsePresetData, ns: Flame_n_Blame_Challenge.Domain, asm: FlameNBlame}
       data:
@@ -88,5 +88,5 @@ MonoBehaviour:
     - rid: 2399684603334099063
       type: {class: ImpulsePresetData, ns: Flame_n_Blame_Challenge.Domain, asm: FlameNBlame}
       data:
-        _type: 2
+        _type: 0
         _force: 800
