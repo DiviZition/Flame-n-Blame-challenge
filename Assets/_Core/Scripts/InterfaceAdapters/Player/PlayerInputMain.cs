@@ -15,6 +15,7 @@ namespace Flame_n_Blame_Challenge.Adapters
         public bool UseLeftItemPressed { get; private set; }
         public bool UseRightItemPressed { get; private set; }
         public bool ThrowButtonPressed { get; private set; }
+        public bool PickUpButtonPressed {  get; private set; }
 
         private InputSystem_Actions _inputMap;
 
@@ -40,6 +41,7 @@ namespace Flame_n_Blame_Challenge.Adapters
             UseRightItemPressed = _inputMap.Player.UseRightItem.ReadValue<float>() > 0;
             UseLeftItemPressed = _inputMap.Player.UseLeftItem.ReadValue<float>() > 0;
             ThrowButtonPressed = _inputMap.Player.Throw.ReadValue<float>() > 0;
+            PickUpButtonPressed = _inputMap.Player.PickUp.ReadValue<float>() > 0;
         }
 
         public void Dispose()

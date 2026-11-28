@@ -20,5 +20,6 @@ namespace Flame_n_Blame_Challenge.Adapters
         public bool UseRightItemPressed { get; }
         public bool UseLeftItemPressed { get; }
         public bool ThrowButtonPressed { get; }
+        public bool PickUpButtonPressed { get; }
     }
 }

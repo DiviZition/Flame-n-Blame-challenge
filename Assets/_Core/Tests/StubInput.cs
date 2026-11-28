@@ -20,5 +20,7 @@ namespace Flame_n_Blame_Challenge.Tests
         public bool UseRightItemPressed { get; set; }
         public bool UseLeftItemPressed { get; set; }
         public bool ThrowButtonPressed { get; set; }
+
+        public bool PickUpButtonPressed { get; set; }
     }
 }
