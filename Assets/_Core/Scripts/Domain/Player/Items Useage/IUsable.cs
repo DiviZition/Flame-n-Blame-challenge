@@ -3,6 +3,8 @@
     public interface IUsable
     {
         public float UseCoolDown { get; }
-        public void Use();
+        //TODO: Нет времени на реализацию возврата UseContext/UseEffectsOutput.
+        //С одним предметом, пока делаем костыль, но на будущее, нельзя давать предметам ссылку на домен
+        public void Use(Player playerdomain); 
     }
 }

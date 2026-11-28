@@ -208,7 +208,7 @@ namespace Flame_n_Blame_Challenge.Adapters
 
             if (amount < 0f)
             {
-                if (_puffPool != null)
+                if (_puffPool != null && _burnable.IgnitionStrength > 0)
                     _puffPool.Spawn(transform.TransformPoint(surfaceLocal), 1f);
             }
             else if (contactPoint.HasValue && !_originLocked)

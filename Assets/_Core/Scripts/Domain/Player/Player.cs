@@ -28,7 +28,8 @@ namespace Flame_n_Blame_Challenge.Domain
             Movement = new PlayerMovement(input, control, LookRotation);
             Motion = new PlayerMotion(Movement, physics, control, presets);
 
-            ItemsHandler = new PlayerItemsHandler(_input);
+            //TODO: не PlayerItemsHandler не должен знать про Player, ему надо передавать обработчик эффектов плеера.
+            ItemsHandler = new PlayerItemsHandler(_input, this);
         }
 
         /// Order within the composite: look, then the intent that reads it, then the velocity that reads
